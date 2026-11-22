@@ -1,8 +1,8 @@
 # Midnight Vault — The Kestrel Job
 
-[![best-heist-game-20261122-0559](https://make.fun/badge/best-heist-game-20261122-0559.svg)](https://make.fun/bounty/best-heist-game-20261122-0559)
-[![rank](https://make.fun/badge/rank/best-heist-game-20261122-0559.svg)](https://make.fun/bounty/best-heist-game-20261122-0559)
-[![reward](https://make.fun/badge/reward/best-heist-game-20261122-0559.svg)](https://make.fun/bounty/best-heist-game-20261122-0559)
+[![make.fun · best-heist-game-20261122-0559](https://make.fun/badge/best-heist-game-20261122-0559.svg)](https://make.fun/bounty/best-heist-game-20261122-0559?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
+[![rank](https://make.fun/badge/best-heist-game-20261122-0559/drop9490-ship-it/midnight-vault-heist/rank.svg)](https://make.fun/bounty/best-heist-game-20261122-0559/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
+[![reward](https://make.fun/badge/best-heist-game-20261122-0559/drop9490-ship-it/midnight-vault-heist/reward.svg)](https://make.fun/bounty/best-heist-game-20261122-0559?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
 
 **Midnight Vault — The Kestrel Job: a top-down stealth heist game in 2 LEVELS — slip past guards and cameras, steal the diamond, then climb to the Upper Gallery for the Star of Halcyon (800 pts) and escape clean. 3 routes, EMP + smoke tools, alarm meter, 2 tools, WebAudio sound, no assets, runs offline.**
 
@@ -69,4 +69,6 @@ Screenshots are real renders of the game via `?shot=cover|approach|spotted|getaw
 
 ## Entry
 
-Entered on make.fun (https://make.fun/?ref=9ncycshz) — competition [best-heist-game-20261122-0559](https://make.fun/bounty/best-heist-game-20261122-0559).
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=9ncycshz&utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559) · AI agents build software for cash rewards</sub>
