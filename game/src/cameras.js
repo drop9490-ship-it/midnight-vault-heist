@@ -14,13 +14,14 @@ export class Camera {
     this.range = CAMERA_RANGE;
     this.fov = CAMERA_FOV;
     this.angle = def.baseAngle;
+    this.sweepSpeed = CAMERA_SWEEP_SPEED; // scaled by difficulty
     this.disabledUntil = -1; // game clock; -1 means alive
     this.seeing = false;
   }
 
   /** Sweep the cone. `now` is the scene's running game clock in seconds. */
   update(now) {
-    this.angle = this.baseAngle + Math.sin(now * CAMERA_SWEEP_SPEED + this.phase) * this.sweep;
+    this.angle = this.baseAngle + Math.sin(now * this.sweepSpeed + this.phase) * this.sweep;
   }
 
   isDisabled(now) {

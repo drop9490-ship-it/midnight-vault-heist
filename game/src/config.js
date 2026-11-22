@@ -5,7 +5,8 @@ export const GAME_HEIGHT = 720;
 export const HUD_HEIGHT = 56;
 
 export const THIEF_SPEED = 180; // px per second on open floor
-export const THIEF_RADIUS = 13;
+export const THIEF_RADIUS = 17; // drawn hooded figure, bigger than v1
+export const GUARD_RADIUS = 16; // drawn uniformed figure
 export const GUARD_SPEED = 55; // patrol walk, px per second
 export const GUARD_RANGE = 230; // vision cone reach, px
 export const GUARD_FOV = (70 * Math.PI) / 180; // vision cone spread
@@ -34,6 +35,17 @@ export const LOOT_POINTS = { diamond: 500, painting: 100, gold: 150, vase: 80 };
 export const TIME_BONUS_START = 300; // bonus points at the getaway, minus 1 per second
 export const TOOL_STOCK = { emp: 2, smoke: 2 };
 
+// Difficulty: picked on the title screen with 1 / 2 / 3, shown in the HUD.
+// ROOKIE drops the corridor guard and slows everything; LEGEND speeds the
+// patrols and the alarm. PRO is the v1 balance, unchanged.
+export const DIFFICULTIES = {
+  rookie: { name: 'ROOKIE', guardSpeed: 0.75, cameraSweep: 0.8, alarmRate: 0.8, guards: 2 },
+  pro: { name: 'PRO', guardSpeed: 1.0, cameraSweep: 1.0, alarmRate: 1.0, guards: 3 },
+  legend: { name: 'LEGEND', guardSpeed: 1.35, cameraSweep: 1.3, alarmRate: 1.25, guards: 3 },
+};
+export const DIFFICULTY_KEYS = ['rookie', 'pro', 'legend'];
+export const DEFAULT_DIFFICULTY = 'pro';
+
 // Night-gallery palette: dark blue marble, gold trim, olive cover, red danger, green thief.
 export const COLORS = {
   bg: 0x0a0e1a,
@@ -49,6 +61,18 @@ export const COLORS = {
   coneCamera: 0xff9f1c,
   thief: 0x39ff6a,
   thiefDark: 0x0e7a2e,
+  thiefCloak: 0x0f3d24,
+  thiefHood: 0x14532d,
+  guardBody: 0x2b3a5e,
+  guardTrim: 0x8fa3d9,
+  guardCap: 0x1a2440,
+  guardSkin: 0xd9a986,
+  carpet: 0x4a1220,
+  carpetDark: 0x3a0d18,
+  vaultSteel: 0x3a4152,
+  vaultDark: 0x232838,
+  plantLeaf: 0x2e6b34,
+  plantPot: 0x6b4a2b,
   exit: 0x2fae4e,
   exitDark: 0x123d20,
   lootGold: 0xffd94d,

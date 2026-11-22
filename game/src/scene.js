@@ -4,9 +4,11 @@
 // (title, pause, caught, game over, getaway). The rules live in the small
 // modules; this file only wires them to Phaser and draws them.
 import {
-  ALARM_CAUGHT, ALARM_SPOTTED, CAUGHT_DELAY, COLORS, EMP_DURATION, EMP_RANGE,
-  GAME_HEIGHT, GAME_WIDTH, HUD_HEIGHT, LOOT_PICKUP_RADIUS, SMOKE_DURATION,
-  SMOKE_RADIUS, TIME_BONUS_START, TOOL_STOCK,
+  ALARM_CAUGHT, ALARM_SPOTTED, CAUGHT_DELAY, CAMERA_SWEEP_SPEED, COLORS, DEFAULT_DIFFICULTY,
+  DIFFICULTIES, DIFFICULTY_KEYS, EMP_DURATION, EMP_RANGE,
+  GAME_HEIGHT, GAME_WIDTH, GUARD_RADIUS, GUARD_SPEED, HUD_HEIGHT,
+  LOOT_PICKUP_RADIUS, SMOKE_DURATION,
+  SMOKE_RADIUS, THIEF_RADIUS, TIME_BONUS_START, TOOL_STOCK,
 } from './config.js';
 import { LEVEL, levelBlockers } from './levels.js';
 import { conePolygon, segmentIntersectsCircle } from './vision.js';
@@ -72,12 +74,14 @@ export class HeistScene extends Phaser.Scene {
     this.toastT = 0;
     this.finalScore = null;
     this.best = safeBest();
+    this.diffKey = DEFAULT_DIFFICULTY; // rookie | pro | legend, picked on title
 
     this.buildStatic();
     this.buildLoot();
     this.buildActors();
     this.buildHud();
     this.buildOverlays();
+    this.applyDifficulty();
     this.showOverlay('title');
 
     // Audio needs a user gesture; arm it on the first one.
@@ -100,15 +104,15 @@ export class HeistScene extends Phaser.Scene {
   // --- construction ---------------------------------------------------------
 
   buildStatic() {
-    // Floor: dark marble with a faint grid and checker sheen.
+    // Floor: two-tone marble checker (40 px tiles) with grout lines.
     const floor = this.add.graphics().setDepth(0);
     floor.fillStyle(COLORS.floor, 1);
     floor.fillRect(0, HUD_HEIGHT, GAME_WIDTH, GAME_HEIGHT - HUD_HEIGHT);
-    for (let x = 16; x < GAME_WIDTH; x += 80) {
-      for (let y = HUD_HEIGHT; y < GAME_HEIGHT; y += 80) {
-        if (((x + y) / 80) % 2 === 0) {
+    for (let x = 16; x < GAME_WIDTH; x += 40) {
+      for (let y = HUD_HEIGHT; y < GAME_HEIGHT; y += 40) {
+        if (((x + y) / 40) % 2 === 0) {
           floor.fillStyle(COLORS.floorTile, 1);
-          floor.fillRect(x, y, 80, 80);
+          floor.fillRect(x, y, 40, 40);
         }
       }
     }
@@ -116,12 +120,76 @@ export class HeistScene extends Phaser.Scene {
     for (let x = 16; x <= GAME_WIDTH; x += 40) floor.lineBetween(x, HUD_HEIGHT, x, GAME_HEIGHT);
     for (let y = HUD_HEIGHT; y <= GAME_HEIGHT; y += 40) floor.lineBetween(0, y, GAME_WIDTH, y);
 
+    // Red carpet runners with a gold edge, laid over the marble.
+    for (const c of LEVEL.carpets) {
+      floor.fillStyle(COLORS.carpet, 1);
+      floor.fillRect(c.x, c.y, c.w, c.h);
+      floor.fillStyle(COLORS.carpetDark, 1);
+      floor.fillRect(c.x + 8, c.y + 8, c.w - 16, c.h - 16);
+      floor.lineStyle(2, COLORS.wallTrim, 0.9);
+      floor.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6);
+      floor.lineStyle(1, COLORS.wallTrim, 0.5);
+      floor.strokeRect(c.x + 10, c.y + 10, c.w - 20, c.h - 20);
+    }
+
     // Exit zone: green floor pad, drawn before the walls.
     const exit = this.add.graphics().setDepth(1);
     exit.fillStyle(COLORS.exitDark, 0.9);
     exit.fillRect(LEVEL.exitZone.x, LEVEL.exitZone.y, LEVEL.exitZone.w, LEVEL.exitZone.h);
     exit.lineStyle(3, COLORS.exit, 1);
     exit.strokeRect(LEVEL.exitZone.x, LEVEL.exitZone.y, LEVEL.exitZone.w, LEVEL.exitZone.h);
+
+    // Decor: the vault's round steel door, pedestals and potted plants.
+    // All depth 1 — flat on the floor, under the actors, never blocking.
+    const decor = this.add.graphics().setDepth(1);
+    const vd = LEVEL.vaultDoor;
+    decor.fillStyle(COLORS.lootGold, 0.12);
+    decor.fillCircle(vd.x, vd.y, vd.r + 16);
+    decor.fillStyle(COLORS.vaultSteel, 1);
+    decor.fillCircle(vd.x, vd.y, vd.r);
+    decor.lineStyle(5, COLORS.vaultRing, 1);
+    decor.strokeCircle(vd.x, vd.y, vd.r - 4);
+    decor.lineStyle(2, COLORS.vaultRing, 0.8);
+    decor.strokeCircle(vd.x, vd.y, vd.r - 18);
+    decor.fillStyle(COLORS.vaultDark, 1);
+    decor.fillCircle(vd.x, vd.y, vd.r - 24);
+    decor.lineStyle(3, COLORS.vaultRing, 0.9);
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i * Math.PI) / 3;
+      decor.lineBetween(
+        vd.x + Math.cos(a) * 8, vd.y + Math.sin(a) * 8,
+        vd.x + Math.cos(a) * (vd.r - 24), vd.y + Math.sin(a) * (vd.r - 24),
+      );
+    }
+    decor.fillStyle(COLORS.vaultRing, 1);
+    decor.fillCircle(vd.x, vd.y, 9);
+    decor.lineStyle(2, COLORS.wallTrim, 1);
+    decor.strokeCircle(vd.x, vd.y, 9);
+    for (const p of LEVEL.pedestals) {
+      decor.fillStyle(0x000000, 0.3);
+      decor.fillEllipse(p.x + p.w / 2, p.y + p.h / 2 + 4, p.w + 6, 10);
+      decor.fillStyle(COLORS.vaultDark, 1);
+      decor.fillRect(p.x, p.y, p.w, p.h);
+      decor.fillStyle(0xd8d2c0, 1);
+      decor.fillRect(p.x + 5, p.y + 5, p.w - 10, p.h - 10);
+      decor.lineStyle(2, COLORS.wallTrim, 1);
+      decor.strokeRect(p.x, p.y, p.w, p.h);
+    }
+    for (const p of LEVEL.plants) {
+      decor.fillStyle(0x000000, 0.3);
+      decor.fillEllipse(p.x, p.y + 12, 30, 10);
+      decor.fillStyle(COLORS.plantLeaf, 1);
+      decor.fillCircle(p.x - 8, p.y - 8, 9);
+      decor.fillCircle(p.x + 8, p.y - 8, 9);
+      decor.fillCircle(p.x, p.y - 14, 10);
+      decor.fillStyle(0x3a8a42, 1);
+      decor.fillCircle(p.x - 4, p.y - 12, 4);
+      decor.fillCircle(p.x + 5, p.y - 10, 4);
+      decor.fillStyle(COLORS.plantPot, 1);
+      decor.fillRect(p.x - 9, p.y, 18, 13);
+      decor.lineStyle(1, COLORS.wallTrim, 0.8);
+      decor.strokeRect(p.x - 9, p.y, 18, 13);
+    }
 
     // Floor labels: the three routes, the vault, the exit.
     for (const label of LEVEL.labels) {
@@ -134,13 +202,26 @@ export class HeistScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(1);
     }
 
-    // Walls + display cases, one static layer with gold trim.
+    // Walls + display cases, one static layer with a bold gold trim.
+    // Framed paintings hang on the walls just inside the room.
     const stat = this.add.graphics().setDepth(3);
     for (const w of LEVEL.walls) {
       stat.fillStyle(COLORS.wall, 1);
       stat.fillRect(w.x, w.y, w.w, w.h);
       stat.fillStyle(COLORS.wallTrim, 1);
-      stat.fillRect(w.x, w.y, w.w, 2);
+      stat.fillRect(w.x, w.y, w.w, 3);
+      stat.fillStyle(COLORS.wallTrim, 0.55);
+      stat.fillRect(w.x, w.y + w.h - 2, w.w, 2);
+    }
+    for (const p of LEVEL.paintings) {
+      stat.fillStyle(COLORS.wallTrim, 1);
+      stat.fillRect(p.x - 3, p.y - 3, p.w + 6, p.h + 6);
+      stat.fillStyle(p.hue, 1);
+      stat.fillRect(p.x, p.y, p.w, p.h);
+      stat.lineStyle(1, 0xffffff, 0.35);
+      const horizon = p.w > p.h ? p.y + p.h * 0.6 : p.x + p.w * 0.6;
+      if (p.w > p.h) stat.lineBetween(p.x + 4, horizon, p.x + p.w - 4, horizon);
+      else stat.lineBetween(horizon, p.y + 4, horizon, p.y + p.h - 4);
     }
     for (const c of LEVEL.cases) {
       stat.fillStyle(COLORS.caseSide, 1);
@@ -149,10 +230,24 @@ export class HeistScene extends Phaser.Scene {
       stat.fillRect(c.x + 4, c.y + 4, c.w - 8, c.h - 8);
       stat.lineStyle(2, COLORS.caseTrim, 1);
       stat.strokeRect(c.x, c.y, c.w, c.h);
+      stat.lineStyle(1, COLORS.wallTrim, 0.9);
+      stat.strokeRect(c.x + 2, c.y + 2, c.w - 4, c.h - 4);
       this.add.text(c.x + c.w / 2, c.y + c.h / 2, 'COVER', {
         fontFamily: MONO, fontSize: '10px', color: '#8fb08f',
       }).setOrigin(0.5).setDepth(3);
     }
+
+    // Vignette: soft darkness at the play-area edges, for the night mood.
+    // Depth 19 sits above the actors but below the overlays (20).
+    const vig = this.add.graphics().setDepth(19);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0.3, 0, 0);
+    vig.fillRect(0, HUD_HEIGHT, GAME_WIDTH, 90);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.3, 0.3);
+    vig.fillRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 90);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0, 0.3, 0);
+    vig.fillRect(0, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.3, 0, 0.3);
+    vig.fillRect(GAME_WIDTH - 90, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
 
     // Vision cones, redrawn every frame (depth 2: above the floor, below walls).
     this.coneG = this.add.graphics().setDepth(2);
@@ -163,12 +258,32 @@ export class HeistScene extends Phaser.Scene {
   buildLoot() {
     this.lootObjs = [];
     for (const item of this.loot) {
-      const glow = this.add.circle(item.x, item.y, 26, COLORS.lootGlow, 0.35).setDepth(4);
-      this.tweens.add({ targets: glow, alpha: 0.12, duration: 750, yoyo: true, repeat: -1 });
+      const big = item.kind === 'diamond';
+      const r = big ? 46 : 30;
+      // Two-layer radial glow: a wide faint halo plus a hot core.
+      const halo = this.add.circle(item.x, item.y, r, COLORS.lootGlow, 0.14).setDepth(4);
+      this.tweens.add({ targets: halo, alpha: 0.06, duration: 900, yoyo: true, repeat: -1 });
+      const glow = this.add.circle(item.x, item.y, r * 0.6, COLORS.lootGlow, 0.35).setDepth(4);
+      this.tweens.add({ targets: glow, alpha: 0.14, duration: 750, yoyo: true, repeat: -1 });
+      // Sparkles: tiny gold dots that twinkle around the loot.
+      const sparkles = [];
+      for (let i = 0; i < 3; i += 1) {
+        const a = (i * Math.PI * 2) / 3 + 0.5;
+        const s = this.add.circle(
+          item.x + Math.cos(a) * (r - 4), item.y + Math.sin(a) * (r - 4), 2.5, 0xffffff, 0.9,
+        ).setDepth(4);
+        this.tweens.add({
+          targets: s, alpha: 0.1, scale: 0.5, duration: 500 + i * 170,
+          yoyo: true, repeat: -1, delay: i * 220,
+        });
+        sparkles.push(s);
+      }
       let shape;
       if (item.kind === 'diamond') {
-        shape = this.add.polygon(item.x, item.y, [0, -15, 11, 0, 0, 15, -11, 0], COLORS.lootGold, 1).setDepth(4);
+        shape = this.add.polygon(item.x, item.y, [0, -20, 15, 0, 0, 20, -15, 0], COLORS.lootGold, 1).setDepth(4);
         shape.setStrokeStyle(2, 0xfff3b0, 1);
+        const facet = this.add.polygon(item.x, item.y - 6, [0, -14, 9, -6, -9, -6], 0xfff3b0, 1).setDepth(4);
+        sparkles.push(facet);
       } else if (item.kind === 'painting') {
         shape = this.add.rectangle(item.x, item.y, 26, 38, 0x8a6d3b, 1).setDepth(4);
         shape.setStrokeStyle(3, COLORS.lootGold, 1);
@@ -179,47 +294,155 @@ export class HeistScene extends Phaser.Scene {
         shape = this.add.circle(item.x, item.y, 12, 0x7fd4c1, 1).setDepth(4);
         shape.setStrokeStyle(2, COLORS.lootGold, 1);
       }
-      const label = this.add.text(item.x, item.y + 30, item.label, {
-        fontFamily: MONO, fontSize: '10px', color: COLORS.textGold,
+      // The diamond label sits right of the vault door so the thief standing
+      // in front of the door (cover pose) never covers its first letters.
+      const lx = item.kind === 'diamond' ? item.x + 32 : item.x;
+      const label = this.add.text(lx, item.y + r + 4, item.label, {
+        fontFamily: MONO, fontSize: '10px', color: COLORS.textGold, fontStyle: 'bold',
       }).setOrigin(0.5, 0).setDepth(4);
-      this.lootObjs.push({ item, glow, shape, label });
+      this.lootObjs.push({ item, halo, glow, sparkles, shape, label });
     }
   }
 
   buildActors() {
-    // Guards: navy body, white facing nose, "!" when they see Kestrel.
+    // All actors are drawn procedurally each frame (see drawGuard /
+    // drawCamera / drawThief in render): a hooded Kestrel, uniformed guards
+    // with caps and flashlights, and wall-mounted CCTV cameras. No assets.
+    this.guardG = this.add.graphics().setDepth(5);
+    this.camG = this.add.graphics().setDepth(5);
+    this.thiefG = this.add.graphics().setDepth(6);
     this.guardObjs = this.guards.map((g) => {
-      const body = this.add.circle(g.x, g.y, 14, 0x2b3a5e, 1).setDepth(5);
-      body.setStrokeStyle(2, 0x8fa3d9, 1);
-      const nose = this.add.triangle(g.x, g.y, 16, 0, -7, -8, -7, 8, 0xdfe6ff, 1).setDepth(5);
-      const alert = this.add.text(g.x, g.y - 26, '!', {
-        fontFamily: FONT, fontSize: '22px', color: '#ff5252', fontStyle: 'bold',
+      const alert = this.add.text(g.x, g.y - 30, '!', {
+        fontFamily: FONT, fontSize: '24px', color: '#ff5252', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5).setVisible(false);
-      return { logic: g, body, nose, alert };
+      return { logic: g, alert };
     });
-    // Cameras: grey wall mount, amber lens that rides the sweep angle.
     this.camObjs = this.cameras.map((c) => {
-      const body = this.add.circle(c.x, c.y, 9, 0x9aa7c2, 1).setDepth(5);
-      body.setStrokeStyle(2, 0x39415e, 1);
-      const lens = this.add.circle(c.x, c.y, 4, COLORS.coneCamera, 1).setDepth(5);
-      const off = this.add.text(c.x, c.y - 22, 'OFF', {
+      const off = this.add.text(c.x, c.y - 24, 'OFF', {
         fontFamily: MONO, fontSize: '11px', color: '#9aa7c2', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5).setVisible(false);
-      return { logic: c, body, lens, off };
+      return { logic: c, off };
     });
-    // Kestrel: bright green, white ring, name tag so the judge sees the thief.
-    this.thiefBody = this.add.circle(this.thief.x, this.thief.y, 13, COLORS.thief, 1).setDepth(6);
-    this.thiefBody.setStrokeStyle(2, 0xffffff, 1);
-    this.thiefNose = this.add.triangle(this.thief.x, this.thief.y, 15, 0, -6, -7, -6, 7, COLORS.thiefDark, 1).setDepth(6);
-    this.thiefTag = this.add.text(this.thief.x, this.thief.y - 28, 'KESTREL', {
+    // "KESTREL" tag so the judge sees the thief at a glance.
+    this.thiefTag = this.add.text(this.thief.x, this.thief.y - 32, 'KESTREL', {
       fontFamily: MONO, fontSize: '10px', color: COLORS.textGreen, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(6);
-    this.ventText = this.add.text(this.thief.x, this.thief.y + 24, 'IN VENT — SLOW', {
+    this.ventText = this.add.text(this.thief.x, this.thief.y + 28, 'IN VENT — SLOW', {
       fontFamily: MONO, fontSize: '10px', color: '#9aa7c2',
     }).setOrigin(0.5).setDepth(6).setVisible(false);
     // Smoke cloud circle.
     this.smokeCircle = this.add.circle(0, 0, SMOKE_RADIUS, 0x9fb3a0, 0.4).setDepth(4).setVisible(false);
     this.smokeCircle.setStrokeStyle(2, 0xd7e5d7, 0.8);
+  }
+
+  // Rotate a local (facing +x) point into world space around (x, y).
+  static rotPoint(x, y, lx, ly, angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return { x: x + lx * c - ly * s, y: y + lx * s + ly * c };
+  }
+
+  drawThief(x, y, facing) {
+    const g = this.thiefG;
+    g.clear();
+    const r = THIEF_RADIUS;
+    g.fillStyle(0x000000, 0.35);
+    g.fillEllipse(x, y + r * 0.65, r * 2, r * 0.8);
+    g.fillStyle(COLORS.thief, 0.1);
+    g.fillCircle(x, y, r + 5);
+    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx, ly, facing);
+    // Cloak: a hooded teardrop pointing where Kestrel faces.
+    const cloak = [[21, 0], [9, -13], [-13, -13], [-18, 0], [-13, 13], [9, 13]]
+      .map(([lx, ly]) => p(lx, ly));
+    g.fillStyle(COLORS.thiefCloak, 1);
+    g.fillPoints(cloak, true);
+    g.lineStyle(2, COLORS.thief, 1);
+    g.strokePoints(cloak, true);
+    // Hood + shadowed face + eyes.
+    const hood = p(1, 0);
+    g.fillStyle(COLORS.thiefHood, 1);
+    g.fillCircle(hood.x, hood.y, 10);
+    g.lineStyle(1.5, COLORS.thief, 0.9);
+    g.strokeCircle(hood.x, hood.y, 10);
+    const face = p(8, 0);
+    g.fillStyle(0x0a0f0a, 1);
+    g.fillCircle(face.x, face.y, 5);
+    for (const ey of [-2, 2]) {
+      const e = p(9, ey);
+      g.fillStyle(0xbfffd0, 1);
+      g.fillCircle(e.x, e.y, 1.2);
+    }
+    // Loot bag slung at the back.
+    const bag = p(-12, 9);
+    g.fillStyle(COLORS.plantPot, 1);
+    g.fillCircle(bag.x, bag.y, 4.5);
+    g.lineStyle(1, COLORS.wallTrim, 1);
+    g.strokeCircle(bag.x, bag.y, 4.5);
+  }
+
+  drawGuard(x, y, angle, seeing) {
+    const g = this.guardG;
+    const r = GUARD_RADIUS;
+    g.fillStyle(0x000000, 0.35);
+    g.fillEllipse(x, y + r * 0.65, r * 2.1, r * 0.85);
+    if (seeing) {
+      g.fillStyle(COLORS.coneGuard, 0.12);
+      g.fillCircle(x, y, r + 7);
+    }
+    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx, ly, angle);
+    // Navy uniform body + belt.
+    g.fillStyle(COLORS.guardBody, 1);
+    g.fillCircle(x, y, r);
+    g.lineStyle(2, COLORS.guardTrim, 1);
+    g.strokeCircle(x, y, r);
+    const b1 = p(-4, -r + 2);
+    const b2 = p(-4, r - 2);
+    g.lineStyle(2, 0x11182b, 1);
+    g.lineBetween(b1.x, b1.y, b2.x, b2.y);
+    // Cap with brim, face, flashlight.
+    const cap = p(5, 0);
+    g.fillStyle(COLORS.guardCap, 1);
+    g.fillCircle(cap.x, cap.y, 8);
+    g.lineStyle(1, COLORS.guardTrim, 0.9);
+    g.strokeCircle(cap.x, cap.y, 8);
+    const brim = [p(12, -6), p(20, 0), p(12, 6)].map((q) => ({ x: q.x, y: q.y }));
+    g.fillStyle(COLORS.guardCap, 1);
+    g.fillPoints(brim, true);
+    const face = p(9, 0);
+    g.fillStyle(COLORS.guardSkin, 1);
+    g.fillCircle(face.x, face.y, 4.5);
+    const lamp = p(19, 0);
+    g.fillStyle(0xfff2b0, 1);
+    g.fillCircle(lamp.x, lamp.y, 3);
+    g.lineStyle(1, 0xffffff, 1);
+    g.strokeCircle(lamp.x, lamp.y, 3);
+  }
+
+  drawCamera(c) {
+    const g = this.camG;
+    const disabled = c.isDisabled(this.clock);
+    // Wall mount.
+    g.fillStyle(0x39415e, 1);
+    g.fillCircle(c.x, c.y, 5);
+    g.lineStyle(1.5, 0x9aa7c2, 0.9);
+    g.strokeCircle(c.x, c.y, 5);
+    const p = (lx, ly) => HeistScene.rotPoint(c.x, c.y, lx, ly, c.angle);
+    // Camera body pointing along the sweep angle.
+    const body = [p(0, -6), p(18, -6), p(18, 6), p(0, 6)].map((q) => ({ x: q.x, y: q.y }));
+    g.fillStyle(0x9aa7c2, 1);
+    g.fillPoints(body, true);
+    g.lineStyle(1.5, 0x39415e, 1);
+    g.strokePoints(body, true);
+    const lens = p(18, 0);
+    g.fillStyle(disabled ? 0x5a6478 : COLORS.coneCamera, 1);
+    g.fillCircle(lens.x, lens.y, 4);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(lens.x + 1, lens.y - 1, 1.2);
+    // Red status LED, blinking while the camera is live.
+    const led = p(-2, -8);
+    const blink = disabled ? 0.25 : (Math.sin(this.clock * 6) > 0 ? 1 : 0.25);
+    g.fillStyle(0xff2d2d, blink);
+    g.fillCircle(led.x, led.y, 2.5);
   }
 
   buildHud() {
@@ -249,8 +472,11 @@ export class HeistScene extends Phaser.Scene {
     this.spottedText = this.add.text(GAME_WIDTH / 2, 92, 'SPOTTED!', {
       fontFamily: MONO, fontSize: '24px', color: COLORS.textRed, fontStyle: 'bold',
     }).setOrigin(0.5, 0).setDepth(11).setVisible(false);
-    this.lootText = this.add.text(560, 33, 'LOOT 0/4 · SCORE 0', {
+    this.lootText = this.add.text(575, 33, 'LOOT 0/4 · SCORE 0', {
       fontFamily: MONO, fontSize: '12px', color: COLORS.text,
+    }).setDepth(11);
+    this.levelText = this.add.text(370, 33, 'LV 1 · HALCYON GALLERY · PRO', {
+      fontFamily: MONO, fontSize: '11px', color: COLORS.textGold,
     }).setDepth(11);
     this.toastText = this.add.text(GAME_WIDTH / 2, 44, '', {
       fontFamily: MONO, fontSize: '11px', color: COLORS.textGold,
@@ -305,19 +531,7 @@ export class HeistScene extends Phaser.Scene {
     this.titleOverlay = mk(
       'MIDNIGHT VAULT',
       COLORS.textGold,
-      [
-        'THE KESTREL JOB — a top-down stealth heist in the Halcyon Gallery.',
-        '',
-        'Steal the DIAMOND from the vault, then reach the green EXIT.',
-        'Dodge guard vision cones and CCTV cameras — walls and display',
-        'cases block sight. The alarm rises when you are seen; at 100% the job is over.',
-        '',
-        'MOVE  WASD / Arrow keys      EMP  [1] — kill the nearest camera 5s (×2)',
-        'SMOKE  [2] — hide in a cloud 3s (×2)      PAUSE  P / Esc      MUTE  M',
-        'Three routes: the guarded MAIN HALL, the SERVICE CORRIDOR, or crawl the VENT.',
-        '',
-        `BEST SCORE: ${this.best}`,
-      ],
+      this.titleBodyLines(),
       'PRESS SPACE TO START',
       true, // title screen covers the whole gallery
     );
@@ -334,12 +548,72 @@ export class HeistScene extends Phaser.Scene {
       ['The alarm hit 100%. The job is blown.'],
       'PRESS R TO TRY AGAIN',
     );
-    this.winOverlay = mk(
-      'CLEAN GETAWAY',
-      COLORS.textGreen,
-      ['The diamond is yours. Kestrel vanishes into the night.'],
-      'PRESS R TO PLAY AGAIN',
-    );
+    this.winOverlay = this.buildWinOverlay();
+  }
+
+  titleBodyLines() {
+    const mark = (key) => (this.diffKey === key ? '◀' : ' ');
+    return [
+      'THE KESTREL JOB — a top-down stealth heist in the Halcyon Gallery.',
+      'Steal the DIAMOND from the vault, then reach the green EXIT.',
+      'Dodge guard vision cones and CCTV cameras — walls and display',
+      'cases block sight. The alarm rises when you are seen; at 100% the job is over.',
+      'MOVE  WASD / Arrows      EMP  [1] — kill the nearest camera 5s (×2)',
+      'SMOKE  [2] — hide in a cloud 3s (×2)      PAUSE  P / Esc      MUTE  M',
+      'Three routes: the guarded MAIN HALL, the SERVICE CORRIDOR, or crawl the VENT.',
+      `DIFFICULTY  [1] ROOKIE ${mark('rookie')}   [2] PRO ${mark('pro')}   [3] LEGEND ${mark('legend')}  — press 1 / 2 / 3`,
+      `BEST SCORE: ${this.best}`,
+    ];
+  }
+
+  refreshTitle() {
+    this.titleOverlay.body.setText(this.titleBodyLines().join('\n'));
+  }
+
+  // The getaway ending is a compact banner at the top of the play area plus
+  // a small score panel below it — the gallery, Kestrel on the EXIT and the
+  // guards stay visible around it (v1's 920x400 modal hid the whole scene).
+  buildWinOverlay() {
+    const c = this.add.container(0, 0).setDepth(20);
+    const banner = this.add.rectangle(640, 96, 780, 62, 0x05070f, 0.92).setOrigin(0.5);
+    banner.setStrokeStyle(2, COLORS.exit, 1);
+    const title = this.add.text(640, 79, '★ CLEAN GETAWAY ★', {
+      fontFamily: MONO, fontSize: '26px', color: COLORS.textGreen, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const scoreLine = this.add.text(640, 108, '', {
+      fontFamily: MONO, fontSize: '14px', color: COLORS.textGold, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const panel = this.add.rectangle(640, 208, 460, 130, 0x05070f, 0.88).setOrigin(0.5);
+    panel.setStrokeStyle(1, 0x2a3350, 1);
+    const body = this.add.text(640, 152, '', {
+      fontFamily: FONT, fontSize: '15px', color: COLORS.text, align: 'center', lineSpacing: 6,
+    }).setOrigin(0.5, 0);
+    const foot = this.add.text(640, 284, 'PRESS R TO PLAY AGAIN', {
+      fontFamily: MONO, fontSize: '14px', color: COLORS.textGold, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    c.add([banner, title, scoreLine, panel, body, foot]);
+    c.setVisible(false);
+    return { container: c, body, foot, scoreLine };
+  }
+
+  // Apply the picked difficulty to the live rules and the HUD.
+  applyDifficulty() {
+    const d = DIFFICULTIES[this.diffKey];
+    for (let i = 0; i < this.guards.length; i += 1) {
+      const g = this.guards[i];
+      g.speed = GUARD_SPEED * d.guardSpeed;
+      g.active = i < d.guards;
+    }
+    for (const c of this.cameras) c.sweepSpeed = CAMERA_SWEEP_SPEED * d.cameraSweep;
+    this.alarm.rate = d.alarmRate;
+    this.levelText.setText(`LV 1 · HALCYON GALLERY · ${d.name}`);
+    if (this.titleOverlay) this.refreshTitle();
+  }
+
+  setDifficulty(key) {
+    if (!DIFFICULTIES[key] || key === this.diffKey) return;
+    this.diffKey = key;
+    this.applyDifficulty();
   }
 
   showOverlay(name) {
@@ -399,14 +673,13 @@ export class HeistScene extends Phaser.Scene {
     this.mode = 'win';
     saveBest(total);
     this.best = safeBest();
+    this.winOverlay.scoreLine.setText(`FINAL SCORE  ${total}      BEST  ${this.best}`);
     this.winOverlay.body.setText([
       'The diamond is yours. Kestrel vanishes into the night.',
       '',
       `LOOT  ${this.lootPoints} pts`,
       `TIME BONUS  +${timeBonus}  (finished in ${fmtTime(this.clock)})`,
       `ALARM PENALTY  -${alarmPenalty}  (peak alarm ${Math.floor(this.alarm.peak)}%)`,
-      '',
-      `FINAL SCORE  ${total}      BEST  ${this.best}`,
     ].join('\n'));
     this.showOverlay('win');
     if (!silent) this.sfx.win();
@@ -415,6 +688,7 @@ export class HeistScene extends Phaser.Scene {
   snapshot() {
     return {
       mode: this.mode,
+      difficulty: this.diffKey,
       thief: { x: Math.round(this.thief.x), y: Math.round(this.thief.y) },
       alarm: Math.round(this.alarm.value),
       score: this.lootPoints,
@@ -422,7 +696,7 @@ export class HeistScene extends Phaser.Scene {
       diamond: this.loot.find((l) => l.kind === 'diamond').collected,
       clock: Math.round(this.clock),
       stock: { ...this.stock },
-      guards: this.guards.map((g) => ({ x: Math.round(g.x), y: Math.round(g.y), seeing: g.seeing })),
+      guards: this.guards.map((g) => ({ x: Math.round(g.x), y: Math.round(g.y), seeing: g.seeing, active: g.active })),
       cameras: this.cameras.map((c) => ({ disabled: c.isDisabled(this.clock) })),
       finalScore: this.finalScore,
     };
@@ -439,7 +713,9 @@ export class HeistScene extends Phaser.Scene {
     this.alarm.reset();
     this.loot.forEach((l) => { l.collected = false; });
     this.lootObjs.forEach((o) => {
+      o.halo.setVisible(true);
       o.glow.setVisible(true);
+      o.sparkles.forEach((s) => s.setVisible(true));
       o.shape.setVisible(true);
       o.label.setVisible(true);
     });
@@ -450,6 +726,7 @@ export class HeistScene extends Phaser.Scene {
     this.clock = 0;
     this.caughtT = 0;
     this.finalScore = null;
+    this.applyDifficulty();
     this.objectiveText.setText('OBJECTIVE: Steal the diamond, reach the EXIT');
     this.mode = 'play';
     this.showOverlay(null);
@@ -512,7 +789,9 @@ export class HeistScene extends Phaser.Scene {
     item.collected = true;
     const obj = this.lootObjs.find((o) => o.item === item);
     if (obj) {
+      obj.halo.setVisible(false);
       obj.glow.setVisible(false);
+      obj.sparkles.forEach((s) => s.setVisible(false));
       obj.shape.setVisible(false);
       obj.label.setVisible(false);
     }
@@ -548,7 +827,10 @@ export class HeistScene extends Phaser.Scene {
     }
 
     if (this.mode === 'title') {
-      if (input.consumePressed('Space') || input.consumePressed('Enter')) this.resetWorld();
+      if (input.consumePressed('Digit1')) this.setDifficulty('rookie');
+      else if (input.consumePressed('Digit2')) this.setDifficulty('pro');
+      else if (input.consumePressed('Digit3')) this.setDifficulty('legend');
+      else if (input.consumePressed('Space') || input.consumePressed('Enter')) this.resetWorld();
     } else if (this.mode === 'play') {
       if (input.consumePressed('KeyP') || input.consumePressed('Escape')) {
         this.mode = 'paused';
@@ -591,22 +873,19 @@ export class HeistScene extends Phaser.Scene {
     window.__gameState = this.snapshot();
   }
 
-  stepPlay(dt) {
-    this.clock += dt;
-
-    this.thief.update(dt, this.input_, this.blockers, LEVEL.ventZone);
-    if (this.thief.stepped) {
-      this.thief.stepped = false;
-      this.sfx.step();
-    }
-    for (const g of this.guards) g.update(dt);
-    for (const c of this.cameras) c.update(this.clock);
-
-    // Vision: any guard or camera with a clear cone on Kestrel?
+  // Vision check: which watchers can see Kestrel right now, and how
+  // exposed he is. Pure evaluation — used by stepPlay every frame and by
+  // the deterministic screenshot poses (frozen worlds never step, so poses
+  // would otherwise show every cone dim and no "!" alert).
+  evaluateVision() {
     const smokeBlocks = (wx, wy, tx, ty) => this.smokeBlocks(wx, wy, tx, ty);
     let seen = false;
     let exposure = 0;
     for (const g of this.guards) {
+      if (!g.active) {
+        g.seeing = false;
+        continue;
+      }
       g.seeing = g.canSee(this.thief.x, this.thief.y, this.blockers, smokeBlocks);
       if (g.seeing) {
         seen = true;
@@ -620,6 +899,21 @@ export class HeistScene extends Phaser.Scene {
         exposure = Math.max(exposure, c.exposure(this.thief.x, this.thief.y));
       }
     }
+    return { seen, exposure };
+  }
+
+  stepPlay(dt) {
+    this.clock += dt;
+
+    this.thief.update(dt, this.input_, this.blockers, LEVEL.ventZone);
+    if (this.thief.stepped) {
+      this.thief.stepped = false;
+      this.sfx.step();
+    }
+    for (const g of this.guards) if (g.active) g.update(dt);
+    for (const c of this.cameras) c.update(this.clock);
+
+    const { seen, exposure } = this.evaluateVision();
     this.alarm.update(dt, seen, exposure);
     if (this.alarm.spotted) {
       this.alarmBeepT -= dt;
@@ -659,7 +953,24 @@ export class HeistScene extends Phaser.Scene {
     // Vision cones (clipped by walls via the ray fan in vision.js).
     const g = this.coneG;
     g.clear();
+    // Soft light pools under each watcher and the diamond, for night mood.
     for (const guard of this.guards) {
+      if (!guard.active) continue;
+      g.fillStyle(0xffe9a8, 0.05);
+      g.fillCircle(guard.x, guard.y, 70);
+    }
+    for (const cam of this.cameras) {
+      if (cam.isDisabled(this.clock)) continue;
+      g.fillStyle(0xffe9a8, 0.04);
+      g.fillCircle(cam.x, cam.y, 50);
+    }
+    const diamond = this.loot.find((l) => l.kind === 'diamond');
+    if (diamond && !diamond.collected) {
+      g.fillStyle(0xffd94d, 0.06);
+      g.fillCircle(diamond.x, diamond.y, 70);
+    }
+    for (const guard of this.guards) {
+      if (!guard.active) continue;
       const pts = conePolygon(guard.x, guard.y, guard.angle, guard.fov, guard.range, this.blockers);
       g.fillStyle(COLORS.coneGuard, guard.seeing ? 0.38 : 0.2);
       g.fillPoints(pts, true);
@@ -682,26 +993,24 @@ export class HeistScene extends Phaser.Scene {
       this.smokeCircle.setVisible(false);
     }
 
-    // Actors.
+    // Actors: drawn figures, redrawn every frame at their live positions.
+    this.guardG.clear();
     for (const o of this.guardObjs) {
-      o.body.setPosition(o.logic.x, o.logic.y);
-      o.nose.setPosition(o.logic.x, o.logic.y);
-      o.nose.setRotation(o.logic.angle);
-      o.alert.setPosition(o.logic.x, o.logic.y - 26).setVisible(o.logic.seeing);
+      if (!o.logic.active) {
+        o.alert.setVisible(false);
+        continue;
+      }
+      this.drawGuard(o.logic.x, o.logic.y, o.logic.angle, o.logic.seeing);
+      o.alert.setPosition(o.logic.x, o.logic.y - 30).setVisible(o.logic.seeing);
     }
+    this.camG.clear();
     for (const o of this.camObjs) {
-      const c = o.logic;
-      const lx = c.x + Math.cos(c.angle) * 12;
-      const ly = c.y + Math.sin(c.angle) * 12;
-      o.lens.setPosition(lx, ly);
-      o.lens.setFillStyle(c.isDisabled(this.clock) ? 0x5a6478 : COLORS.coneCamera, 1);
-      o.off.setVisible(c.isDisabled(this.clock));
+      this.drawCamera(o.logic);
+      o.off.setVisible(o.logic.isDisabled(this.clock));
     }
-    this.thiefBody.setPosition(this.thief.x, this.thief.y);
-    this.thiefNose.setPosition(this.thief.x, this.thief.y);
-    this.thiefNose.setRotation(this.thief.facing);
-    this.thiefTag.setPosition(this.thief.x, this.thief.y - 28);
-    this.ventText.setPosition(this.thief.x, this.thief.y + 24).setVisible(this.thief.inVent);
+    this.drawThief(this.thief.x, this.thief.y, this.thief.facing);
+    this.thiefTag.setPosition(this.thief.x, this.thief.y - 32);
+    this.ventText.setPosition(this.thief.x, this.thief.y + 28).setVisible(this.thief.inVent);
 
     // HUD.
     const hg = this.hudG;

@@ -9,6 +9,7 @@ export class Alarm {
     this.peak = 0; // highest value reached this run (scores the getaway)
     this.spotted = false;
     this.caught = false;
+    this.rate = 1; // difficulty multiplier on the rise rate
   }
 
   reset() {
@@ -31,7 +32,7 @@ export class Alarm {
    */
   update(dt, seen, exposure) {
     if (seen) {
-      const rate = ALARM_RISE_BASE + ALARM_RISE_CLOSE * exposure;
+      const rate = (ALARM_RISE_BASE + ALARM_RISE_CLOSE * exposure) * this.rate;
       this.set(this.value + rate * dt);
     } else {
       this.set(this.value - ALARM_DECAY * dt);

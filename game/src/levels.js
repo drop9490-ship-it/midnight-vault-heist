@@ -19,9 +19,10 @@ export const LEVEL = {
     { x: 960, y: 224, w: 120, h: 16 }, // vault south wall, west of the door
     { x: 1160, y: 224, w: 104, h: 16 }, // vault south wall, east of the door
     // Divider wall between the hall and the vault side: main gap y 200..270,
-    // vent slit y 380..404 (thief crawls through it at half speed).
-    { x: 640, y: 270, w: 16, h: 110 },
-    { x: 640, y: 404, w: 16, h: 156 },
+    // vent slit y 372..412 (40 px — matches ventZone, so the 34 px-wide thief
+    // can actually crawl through it; v1's 24 px slit was impassable).
+    { x: 640, y: 270, w: 16, h: 102 },
+    { x: 640, y: 412, w: 16, h: 148 },
     // Service-corridor ceiling: gaps at x 300..380 and x 880..960.
     { x: 200, y: 560, w: 100, h: 16 },
     { x: 380, y: 560, w: 500, h: 16 },
@@ -35,7 +36,32 @@ export const LEVEL = {
     { x: 300, y: 420, w: 120, h: 56 },
     { x: 900, y: 420, w: 130, h: 56 },
   ],
-  // The vent slit itself: inside this box the thief moves at VENT_SLOW speed.
+  // Decoration (depth 1, under the actors — never blocks movement or sight):
+  // red carpet runners, framed paintings on the walls, display pedestals,
+  // potted plants in the corners, and the vault's round steel door.
+  carpets: [
+    { x: 270, y: 240, w: 130, h: 305 }, // main-hall runner
+    { x: 1000, y: 100, w: 240, h: 84 }, // vault floor, under the diamond
+  ],
+  paintings: [
+    { x: 150, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
+    { x: 700, y: 92, w: 64, h: 24, hue: 0x3a5a7a },
+    { x: 880, y: 92, w: 64, h: 24, hue: 0x4a6b3a },
+    { x: 22, y: 300, w: 24, h: 64, hue: 0x6b5a8a },
+    { x: 22, y: 520, w: 24, h: 64, hue: 0x8a6d3b },
+  ],
+  pedestals: [
+    { x: 200, y: 640, w: 26, h: 26 },
+    { x: 44, y: 540, w: 26, h: 26 },
+    { x: 1232, y: 640, w: 26, h: 26 },
+  ],
+  plants: [
+    { x: 48, y: 100 },
+    { x: 620, y: 100 },
+    { x: 1232, y: 668 },
+  ],
+  // The vault door: a round steel safe door the diamond sits in front of.
+  vaultDoor: { x: 1120, y: 128, r: 56 },
   ventZone: { x: 600, y: 372, w: 120, h: 40 },
   // The getaway: step in here after stealing the diamond to win.
   exitZone: { x: 24, y: 600, w: 120, h: 96 },
@@ -46,7 +72,7 @@ export const LEVEL = {
     { x: 450, y: 335, text: 'MAIN HALL' },
     { x: 640, y: 668, text: 'SERVICE CORRIDOR' },
     { x: 676, y: 388, text: 'VENT' },
-    { x: 1120, y: 205, text: 'VAULT' },
+    { x: 1120, y: 216, text: 'VAULT' },
     { x: 84, y: 652, text: 'EXIT' },
   ],
   // Loot: the diamond is the job; the rest is bonus score.

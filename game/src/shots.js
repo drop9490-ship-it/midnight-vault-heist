@@ -25,15 +25,17 @@ export function applyShot(name, scene) {
   scene.setScore(0);
 
   if (name === 'cover') {
-    // Kestrel slips toward the vault with the diamond in reach; guard 1
-    // sweeps the hall and guard 2 sweeps the vault approach, both cones
-    // close; both cameras sweep; alarm sits at 40% — tense, not yet caught.
-    scene.setThief(1000, 190);
-    scene.setGuard(0, 900, 260);
-    scene.setGuard(1, 980, 330);
+    // Kestrel at the vault door, inches from the diamond; guard 1 stands
+    // south of the vault and its cone sweeps straight THROUGH the door gap
+    // (x 1080..1160) onto him — the cone is not clipped by the vault wall.
+    // Guard 0 sweeps the hall toward the vault; both cameras sweep; alarm
+    // sits at 40% — tense, not yet caught.
+    scene.setThief(1085, 195);
+    scene.setGuard(0, 700, 300);
+    scene.setGuard(1, 1120, 420);
     scene.setGuard(2, 700, 640);
-    face(scene, 0, 1000, 190);
-    face(scene, 1, 1000, 190);
+    face(scene, 0, 1085, 195);
+    face(scene, 1, 1085, 195);
     scene.setGuardAngle(2, Math.PI); // corridor guard looking back left
     scene.setAlarm(40);
     scene.collectLootKind('painting', true);
@@ -62,8 +64,10 @@ export function applyShot(name, scene) {
     scene.setScore(150);
     scene.clock = 96;
   } else if (name === 'getaway') {
-    // The job is done: diamond in hand, Kestrel on the EXIT, getaway banner.
-    scene.setThief(110, 668);
+    // The job is done: diamond in hand, Kestrel on the EXIT, compact banner.
+    // Thief at (84, 640) so the KESTREL tag sits above the EXIT label instead
+    // of on top of it (v1's overlap).
+    scene.setThief(84, 640);
     scene.setGuard(0, 500, 320);
     scene.setGuard(1, 1180, 480);
     scene.setGuard(2, 1000, 640);
@@ -76,5 +80,8 @@ export function applyShot(name, scene) {
     scene.clock = 132;
     scene.finishWin(true);
   }
+  // Frozen poses never step the simulation, so evaluate vision once here —
+  // the cones brighten and the "!" alerts show where a watcher has Kestrel.
+  scene.evaluateVision();
   return name;
 }

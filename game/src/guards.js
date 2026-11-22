@@ -13,6 +13,7 @@ export class Guard {
     this.waypoints = def.waypoints;
     this.wpIndex = 1 % this.waypoints.length;
     this.speed = GUARD_SPEED;
+    this.active = true; // ROOKIE difficulty benches the corridor guard
     this.range = GUARD_RANGE;
     this.fov = GUARD_FOV;
     this.angle = angleTo(def.x, def.y, this.waypoints[this.wpIndex].x, this.waypoints[this.wpIndex].y);

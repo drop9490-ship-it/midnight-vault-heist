@@ -24,6 +24,7 @@ No build step, no network, no assets: Phaser 4 is vendored under `game/vendor/`,
 | WASD / Arrow keys | Move Kestrel |
 | 1 or click EMP | EMP pulse — kills the nearest camera for 5s (2 charges) |
 | 2 or click SMOKE | Smoke pellet — hide in a cloud for 3s (2 charges) |
+| 1 / 2 / 3 on title | Difficulty — ROOKIE / PRO / LEGEND (patrol speed, cameras, alarm, guards) |
 | P / Esc | Pause |
 | M | Mute |
 | R | Restart after caught / getaway |
@@ -36,6 +37,8 @@ No build step, no network, no assets: Phaser 4 is vendored under `game/vendor/`,
 - **2 sweeping CCTV cameras** with amber cones; EMP them or smoke past them.
 - **Alarm meter 0–100** — rises when you are seen (faster up close), falls while hidden; SPOTTED! warning at 60%, a fair 1.5s grace at 100% before you are CAUGHT.
 - **4 loot targets** — the diamond (500), gold bars (150), a painting (100), a vase (80). Score = loot + time bonus − alarm penalty.
+- **Difficulty on the title screen** — ROOKIE (2 guards, slower patrols and alarm), PRO (the balanced game), LEGEND (faster patrols, cameras and alarm); shown in the HUD.
+- **Drawn characters, no assets** — hooded Kestrel with a loot bag, uniformed guards with caps and flashlights, wall-mounted CCTV with blinking LEDs; a round steel vault door, red carpet runners, framed paintings, pedestals, potted plants, vignette and light pools.
 - **Full game loop** — title screen with best score, pause, caught / getaway endings, restart.
 - **Procedural everything** — marble floor, gold-trimmed walls, glowing loot, WebAudio footsteps, loot chimes, alarm beeps, caught sting. No external files.
 
