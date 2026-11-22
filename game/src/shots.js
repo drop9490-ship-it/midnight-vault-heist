@@ -38,10 +38,12 @@ export function applyShot(name, scene) {
     // straight THROUGH the door gap (x 1080..1160) onto him — the cone is
     // not clipped by the vault wall. Guard 0 sweeps the hall toward the
     // vault; alarm sits at 45% — tense, not yet caught. NEW in v7: a smoke
-    // pellet cloud hangs just below-left of Kestrel (staged at (1020,295)
-    // — off every watcher's sight line, so guard 1 still has eyes on him)
-    // and the top camera is EMP'd (grey dead cone + "EMP'D" label, HUD
-    // reads CAMS 1). Smoke + EMP + locked cone + alarm in ONE frame.
+    // pellet cloud hangs just below-left of Kestrel (staged at (995,320)
+    // — v8 moved it 25 px down-left from (1020,295) so its top edge clears
+    // the vault's south wall; still off every watcher's sight line, so
+    // guard 1 still has eyes on him) and the top camera is EMP'd (grey
+    // dead cone + "EMP'D" label, HUD reads CAMS 1). Smoke + EMP + locked
+    // cone + alarm in ONE frame.
     scene.setThief(1085, 195);
     scene.setGuard(0, 700, 300);
     scene.setGuard(1, 1120, 420);
@@ -53,7 +55,7 @@ export function applyShot(name, scene) {
     scene.collectLootKind('painting', true);
     scene.setScore(100);
     scene.clock = 47; // 0:47 on the timer, mid-job
-    scene.stageSmoke(1020, 295); // smoke staged AFTER the clock is set
+    scene.stageSmoke(995, 320); // smoke staged AFTER the clock is set
     scene.stageEmp(0); // top camera EMP'd — grey cone + EMP'D label
   } else if (name === 'approach') {
     // Reading the patrol: Kestrel waits just above a COVER case while

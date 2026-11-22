@@ -172,6 +172,21 @@ export class HeistScene extends Phaser.Scene {
       carpetG.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6);
       carpetG.lineStyle(1, COLORS.wallTrim, 0.5);
       carpetG.strokeRect(c.x + 10, c.y + 10, c.w - 20, c.h - 20);
+      // v8: woven centre motif — small gold diamonds down the runner's
+      // spine, so the carpet reads as textile instead of a solid block.
+      const horiz = c.w >= c.h;
+      const axisLen = horiz ? c.w : c.h;
+      const count = Math.floor((axisLen - 24) / 44);
+      for (let i = 0; i < count; i += 1) {
+        const t = (axisLen - (count - 1) * 44) / 2 + i * 44;
+        const cx = horiz ? c.x + t : c.x + c.w / 2;
+        const cy = horiz ? c.y + c.h / 2 : c.y + t;
+        carpetG.fillStyle(COLORS.wallTrim, 0.75);
+        carpetG.fillPoints([
+          { x: cx, y: cy - 6 }, { x: cx + 5, y: cy },
+          { x: cx, y: cy + 6 }, { x: cx - 5, y: cy },
+        ], true);
+      }
     }
     this.levelObjs.push(carpetG);
 
@@ -410,7 +425,8 @@ export class HeistScene extends Phaser.Scene {
   buildActorObjs() {
     this.guardObjs = this.guards.map((g) => {
       // v7: bigger, stroked "!" — the alert must read in the contact sheet.
-      const alert = this.add.text(g.x, g.y - 34, '!', {
+      // v8: raised 4 px — the 1.2x guard figure grew into its old spot.
+      const alert = this.add.text(g.x, g.y - 38, '!', {
         fontFamily: FONT, fontSize: '32px', color: '#ff5252', fontStyle: 'bold',
         stroke: '#5a0000', strokeThickness: 5,
       }).setOrigin(0.5).setDepth(5).setVisible(false);
@@ -483,56 +499,64 @@ export class HeistScene extends Phaser.Scene {
   drawThief(x, y, facing) {
     const g = this.thiefG;
     g.clear();
+    // v8: the figure is drawn 1.2x larger than its collision circle so
+    // Kestrel reads in the 768 px contact sheet; THIEF_RADIUS (19) still
+    // rules movement, the vent slit and loot pickup — only pixels change.
     const r = THIEF_RADIUS;
+    const S = 1.2;
     g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(x, y + r * 0.65, r * 2.2, r * 0.85);
+    g.fillEllipse(x, y + r * 0.65 * S, r * 2.2 * S, r * 0.85 * S);
     g.fillStyle(COLORS.thief, 0.1);
-    g.fillCircle(x, y, r + 5);
-    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx, ly, facing);
+    g.fillCircle(x, y, r * S + 5);
+    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx * S, ly * S, facing);
     // Cloak: a hooded teardrop pointing where Kestrel faces.
     const cloak = [[21, 0], [9, -13], [-13, -13], [-18, 0], [-13, 13], [9, 13]]
       .map(([lx, ly]) => p(lx, ly));
     g.fillStyle(COLORS.thiefCloak, 1);
     g.fillPoints(cloak, true);
-    g.lineStyle(3, COLORS.thief, 1);
+    g.lineStyle(4, COLORS.thief, 1);
     g.strokePoints(cloak, true);
     // Hood + shadowed face + eyes.
     const hood = p(1, 0);
     g.fillStyle(COLORS.thiefHood, 1);
-    g.fillCircle(hood.x, hood.y, 10);
-    g.lineStyle(1.5, COLORS.thief, 0.9);
-    g.strokeCircle(hood.x, hood.y, 10);
+    g.fillCircle(hood.x, hood.y, 10 * S);
+    g.lineStyle(2, COLORS.thief, 0.9);
+    g.strokeCircle(hood.x, hood.y, 10 * S);
     const face = p(8, 0);
     g.fillStyle(0x0a0f0a, 1);
-    g.fillCircle(face.x, face.y, 5);
+    g.fillCircle(face.x, face.y, 5 * S);
     for (const ey of [-2, 2]) {
       const e = p(9, ey);
       g.fillStyle(0xbfffd0, 1);
-      g.fillCircle(e.x, e.y, 1.2);
+      g.fillCircle(e.x, e.y, 1.5);
     }
     // Loot bag slung at the back.
     const bag = p(-12, 9);
     g.fillStyle(COLORS.plantPot, 1);
-    g.fillCircle(bag.x, bag.y, 4.5);
+    g.fillCircle(bag.x, bag.y, 4.5 * S);
     g.lineStyle(1, COLORS.wallTrim, 1);
-    g.strokeCircle(bag.x, bag.y, 4.5);
+    g.strokeCircle(bag.x, bag.y, 4.5 * S);
   }
 
   drawGuard(x, y, angle, seeing) {
     const g = this.guardG;
     const r = GUARD_RADIUS;
+    // v8: drawn 1.2x larger than the collision circle (same as the thief)
+    // so the guards read in the contact sheet; patrol, speed and vision
+    // are untouched.
+    const S = 1.2;
     g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(x, y + r * 0.65, r * 2.2, r * 0.85);
+    g.fillEllipse(x, y + r * 0.65 * S, r * 2.2 * S, r * 0.85 * S);
     if (seeing) {
       g.fillStyle(COLORS.coneGuard, 0.12);
-      g.fillCircle(x, y, r + 7);
+      g.fillCircle(x, y, r * S + 7);
     }
-    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx, ly, angle);
+    const p = (lx, ly) => HeistScene.rotPoint(x, y, lx * S, ly * S, angle);
     // Navy uniform body + belt.
     g.fillStyle(COLORS.guardBody, 1);
-    g.fillCircle(x, y, r);
-    g.lineStyle(3, COLORS.guardTrim, 1);
-    g.strokeCircle(x, y, r);
+    g.fillCircle(x, y, r * S);
+    g.lineStyle(4, COLORS.guardTrim, 1);
+    g.strokeCircle(x, y, r * S);
     const b1 = p(-4, -r + 2);
     const b2 = p(-4, r - 2);
     g.lineStyle(2, 0x11182b, 1);
@@ -540,20 +564,20 @@ export class HeistScene extends Phaser.Scene {
     // Cap with brim, face, flashlight.
     const cap = p(5, 0);
     g.fillStyle(COLORS.guardCap, 1);
-    g.fillCircle(cap.x, cap.y, 8);
+    g.fillCircle(cap.x, cap.y, 8 * S);
     g.lineStyle(1, COLORS.guardTrim, 0.9);
-    g.strokeCircle(cap.x, cap.y, 8);
+    g.strokeCircle(cap.x, cap.y, 8 * S);
     const brim = [p(12, -6), p(20, 0), p(12, 6)].map((q) => ({ x: q.x, y: q.y }));
     g.fillStyle(COLORS.guardCap, 1);
     g.fillPoints(brim, true);
     const face = p(9, 0);
     g.fillStyle(COLORS.guardSkin, 1);
-    g.fillCircle(face.x, face.y, 4.5);
+    g.fillCircle(face.x, face.y, 4.5 * S);
     const lamp = p(19, 0);
     g.fillStyle(0xfff2b0, 1);
-    g.fillCircle(lamp.x, lamp.y, 3);
+    g.fillCircle(lamp.x, lamp.y, 3 * S);
     g.lineStyle(1, 0xffffff, 1);
-    g.strokeCircle(lamp.x, lamp.y, 3);
+    g.strokeCircle(lamp.x, lamp.y, 3 * S);
   }
 
   drawCamera(c) {
@@ -1226,7 +1250,7 @@ export class HeistScene extends Phaser.Scene {
         continue;
       }
       this.drawGuard(o.logic.x, o.logic.y, o.logic.angle, o.logic.seeing);
-      o.alert.setPosition(o.logic.x, o.logic.y - 34).setVisible(o.logic.seeing);
+      o.alert.setPosition(o.logic.x, o.logic.y - 38).setVisible(o.logic.seeing);
     }
     this.camG.clear();
     for (const o of this.camObjs) {
@@ -1234,8 +1258,8 @@ export class HeistScene extends Phaser.Scene {
       o.off.setVisible(o.logic.isDisabled(this.clock));
     }
     this.drawThief(this.thief.x, this.thief.y, this.thief.facing);
-    this.thiefTag.setPosition(this.thief.x, this.thief.y - 32);
-    this.ventText.setPosition(this.thief.x, this.thief.y + 28).setVisible(this.thief.inVent);
+    this.thiefTag.setPosition(this.thief.x, this.thief.y - 36);
+    this.ventText.setPosition(this.thief.x, this.thief.y + 32).setVisible(this.thief.inVent);
 
     // HUD.
     const hg = this.hudG;

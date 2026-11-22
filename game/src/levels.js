@@ -73,7 +73,8 @@ export const LEVEL = {
   ],
   plants: [
     { x: 48, y: 100 },
-    { x: 620, y: 100 },
+    { x: 540, y: 100 }, // v8: moved 80 px left from (620,100) — the plant
+    // sat inside the SPOTTED! banner (x 582..698, y 92..120) in shot 3
     { x: 1232, y: 668 },
     // v7 density: two more plants in the bare top and bottom-right corners.
     { x: 980, y: 100 },
