@@ -18,6 +18,9 @@ function face(scene, guardIndex, tx, ty) {
 }
 
 export function applyShot(name, scene) {
+  // Screenshots are always Level 1 poses — make sure the campaign is on
+  // Level 1 even if a pose is ever loaded after a Level 2 run.
+  if (scene.loadLevel && scene.levelIndex !== 0) scene.loadLevel(0);
   scene.freezeWorld(true);
   scene.setMode('play');
   // A neutral starting point; each pose overrides what it needs.
