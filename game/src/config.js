@@ -5,8 +5,8 @@ export const GAME_HEIGHT = 720;
 export const HUD_HEIGHT = 56;
 
 export const THIEF_SPEED = 180; // px per second on open floor
-export const THIEF_RADIUS = 17; // drawn hooded figure, bigger than v1
-export const GUARD_RADIUS = 16; // drawn uniformed figure
+export const THIEF_RADIUS = 19; // drawn hooded figure, bigger than v1
+export const GUARD_RADIUS = 18; // drawn uniformed figure
 export const GUARD_SPEED = 55; // patrol walk, px per second
 export const GUARD_RANGE = 230; // vision cone reach, px
 export const GUARD_FOV = (70 * Math.PI) / 180; // vision cone spread

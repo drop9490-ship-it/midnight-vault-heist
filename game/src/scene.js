@@ -174,6 +174,29 @@ export class HeistScene extends Phaser.Scene {
       decor.fillRect(p.x + 5, p.y + 5, p.w - 10, p.h - 10);
       decor.lineStyle(2, COLORS.wallTrim, 1);
       decor.strokeRect(p.x, p.y, p.w, p.h);
+      // Dressed pedestal tops (decor only, never loot): a teal vase, a
+      // marble bust, a tiny golden idol — the gallery reads lived-in.
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      if (p.top === 'vase') {
+        decor.fillStyle(0x7fd4c1, 1);
+        decor.fillCircle(cx, cy + 3, 6);
+        decor.fillRect(cx - 2, cy - 9, 4, 6);
+        decor.fillStyle(COLORS.lootGold, 1);
+        decor.fillRect(cx - 4, cy - 11, 8, 2);
+      } else if (p.top === 'bust') {
+        decor.fillStyle(COLORS.guardSkin, 1);
+        decor.fillCircle(cx, cy - 4, 5);
+        decor.fillStyle(0xd8d2c0, 1);
+        decor.fillRect(cx - 7, cy + 2, 14, 5);
+        decor.fillStyle(COLORS.vaultDark, 1);
+        decor.fillRect(cx - 8, cy + 7, 16, 3);
+      } else if (p.top === 'idol') {
+        decor.fillStyle(COLORS.lootGold, 1);
+        decor.fillTriangle(cx, cy - 9, cx + 5, cy + 1, cx - 5, cy + 1);
+        decor.fillStyle(COLORS.vaultDark, 1);
+        decor.fillRect(cx - 6, cy + 1, 12, 3);
+      }
     }
     for (const p of LEVEL.plants) {
       decor.fillStyle(0x000000, 0.3);
@@ -347,7 +370,7 @@ export class HeistScene extends Phaser.Scene {
     g.clear();
     const r = THIEF_RADIUS;
     g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(x, y + r * 0.65, r * 2, r * 0.8);
+    g.fillEllipse(x, y + r * 0.65, r * 2.2, r * 0.85);
     g.fillStyle(COLORS.thief, 0.1);
     g.fillCircle(x, y, r + 5);
     const p = (lx, ly) => HeistScene.rotPoint(x, y, lx, ly, facing);
@@ -356,7 +379,7 @@ export class HeistScene extends Phaser.Scene {
       .map(([lx, ly]) => p(lx, ly));
     g.fillStyle(COLORS.thiefCloak, 1);
     g.fillPoints(cloak, true);
-    g.lineStyle(2, COLORS.thief, 1);
+    g.lineStyle(3, COLORS.thief, 1);
     g.strokePoints(cloak, true);
     // Hood + shadowed face + eyes.
     const hood = p(1, 0);
@@ -384,7 +407,7 @@ export class HeistScene extends Phaser.Scene {
     const g = this.guardG;
     const r = GUARD_RADIUS;
     g.fillStyle(0x000000, 0.35);
-    g.fillEllipse(x, y + r * 0.65, r * 2.1, r * 0.85);
+    g.fillEllipse(x, y + r * 0.65, r * 2.2, r * 0.85);
     if (seeing) {
       g.fillStyle(COLORS.coneGuard, 0.12);
       g.fillCircle(x, y, r + 7);
@@ -393,7 +416,7 @@ export class HeistScene extends Phaser.Scene {
     // Navy uniform body + belt.
     g.fillStyle(COLORS.guardBody, 1);
     g.fillCircle(x, y, r);
-    g.lineStyle(2, COLORS.guardTrim, 1);
+    g.lineStyle(3, COLORS.guardTrim, 1);
     g.strokeCircle(x, y, r);
     const b1 = p(-4, -r + 2);
     const b2 = p(-4, r - 2);

@@ -65,9 +65,9 @@ export function applyShot(name, scene) {
     scene.clock = 96;
   } else if (name === 'getaway') {
     // The job is done: diamond in hand, Kestrel on the EXIT, compact banner.
-    // Thief at (84, 640) so the KESTREL tag sits above the EXIT label instead
-    // of on top of it (v1's overlap).
-    scene.setThief(84, 640);
+    // Thief at (84, 614) so the figure (r19, spans y 595..633) never covers
+    // the EXIT label at (84, 652) — the KESTREL tag sits above it instead.
+    scene.setThief(84, 614);
     scene.setGuard(0, 500, 320);
     scene.setGuard(1, 1180, 480);
     scene.setGuard(2, 1000, 640);

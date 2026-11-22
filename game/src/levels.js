@@ -41,7 +41,7 @@ export const LEVEL = {
   // potted plants in the corners, and the vault's round steel door.
   carpets: [
     { x: 270, y: 240, w: 130, h: 305 }, // main-hall runner
-    { x: 1000, y: 100, w: 240, h: 84 }, // vault floor, under the diamond
+    { x: 1070, y: 188, w: 100, h: 36 }, // vault runner, in front of the door
   ],
   paintings: [
     { x: 150, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
@@ -51,9 +51,9 @@ export const LEVEL = {
     { x: 22, y: 520, w: 24, h: 64, hue: 0x8a6d3b },
   ],
   pedestals: [
-    { x: 200, y: 640, w: 26, h: 26 },
-    { x: 44, y: 540, w: 26, h: 26 },
-    { x: 1232, y: 640, w: 26, h: 26 },
+    { x: 200, y: 640, w: 26, h: 26, top: 'vase' },
+    { x: 44, y: 540, w: 26, h: 26, top: 'bust' },
+    { x: 1232, y: 640, w: 26, h: 26, top: 'idol' },
   ],
   plants: [
     { x: 48, y: 100 },
