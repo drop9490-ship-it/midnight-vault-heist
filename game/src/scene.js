@@ -10,7 +10,7 @@ import {
   LOOT_PICKUP_RADIUS, SMOKE_DURATION,
   SMOKE_RADIUS, THIEF_RADIUS, TIME_BONUS_START, TOOL_STOCK,
 } from './config.js';
-import { LEVEL, levelBlockers } from './levels.js';
+import { LEVELS, levelBlockers } from './levels.js';
 import { conePolygon, segmentIntersectsCircle } from './vision.js';
 import { Guard } from './guards.js';
 import { Camera } from './cameras.js';
@@ -56,32 +56,25 @@ export class HeistScene extends Phaser.Scene {
   }
 
   create() {
-    this.blockers = levelBlockers();
+    this.levelIndex = 0; // campaign level: 0 = Halcyon Gallery, 1 = Upper Gallery
+    this.level = LEVELS[0];
+    this.campaignLoot = 0; // loot banked by clearing Level 1
+    this.levelClear = false; // true once the active level is won
     this.input_ = new Input();
     this.sfx = new Sfx();
     this.alarm = new Alarm();
-    this.thief = new Thief(LEVEL.spawn.x, LEVEL.spawn.y);
-    this.guards = LEVEL.guards.map((d) => new Guard(d));
-    this.cameras = LEVEL.cameras.map((d) => new Camera(d));
-    this.loot = LEVEL.loot.map((d) => ({ ...d, collected: false }));
-    this.lootPoints = 0;
-    this.stock = { ...TOOL_STOCK };
-    this.smokeUntil = -1;
-    this.smokeX = 0;
-    this.smokeY = 0;
-    this.caughtT = 0;
-    this.alarmBeepT = 0;
-    this.toastT = 0;
-    this.finalScore = null;
     this.best = safeBest();
     this.diffKey = DEFAULT_DIFFICULTY; // rookie | pro | legend, picked on title
+    this.levelObjs = []; // every per-level display object, destroyed on loadLevel
+    this.popTexts = []; // floating "+points" texts, cleared on loadLevel
 
-    this.buildStatic();
-    this.buildLoot();
-    this.buildActors();
+    this.buildPersistent();
+    this.buildActorGraphics();
+    this.loadLevel(0);
     this.buildHud();
     this.buildOverlays();
     this.applyDifficulty();
+    this.mode = 'title';
     this.showOverlay('title');
 
     // Audio needs a user gesture; arm it on the first one.
@@ -103,7 +96,11 @@ export class HeistScene extends Phaser.Scene {
 
   // --- construction ---------------------------------------------------------
 
-  buildStatic() {
+  // Built once: the marble floor, the vignette, and the per-frame graphics
+  // (vision cones, smoke). Everything level-specific lives in
+  // buildLevelGraphics / buildLoot / buildActorObjs and is destroyed by
+  // destroyLevel() before the next level is built.
+  buildPersistent() {
     // Floor: two-tone marble checker (40 px tiles) with grout lines.
     const floor = this.add.graphics().setDepth(0);
     floor.fillStyle(COLORS.floor, 1);
@@ -120,29 +117,68 @@ export class HeistScene extends Phaser.Scene {
     for (let x = 16; x <= GAME_WIDTH; x += 40) floor.lineBetween(x, HUD_HEIGHT, x, GAME_HEIGHT);
     for (let y = HUD_HEIGHT; y <= GAME_HEIGHT; y += 40) floor.lineBetween(0, y, GAME_WIDTH, y);
 
+    // Vignette: soft darkness at the play-area edges, for the night mood.
+    // Depth 19 sits above the actors but below the overlays (20).
+    const vig = this.add.graphics().setDepth(19);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0.3, 0, 0);
+    vig.fillRect(0, HUD_HEIGHT, GAME_WIDTH, 90);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.3, 0.3);
+    vig.fillRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 90);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0, 0.3, 0);
+    vig.fillRect(0, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.3, 0, 0.3);
+    vig.fillRect(GAME_WIDTH - 90, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
+
+    // Vision cones, redrawn every frame (depth 2: above the floor, below walls).
+    this.coneG = this.add.graphics().setDepth(2);
+    // Smoke cloud, above loot, below the actors.
+    this.smokeG = this.add.graphics().setDepth(4);
+  }
+
+  // Destroy every per-level display object (graphics, labels, loot, actor
+  // tags) so the next level starts from a clean slate. Loot tweens are
+  // killed first — their targets are about to disappear.
+  destroyLevel() {
+    this.tweens.killAll();
+    for (const obj of this.levelObjs) obj.destroy();
+    this.levelObjs = [];
+    // Floating "+points" texts are not level objects (their tween kills
+    // them on completion), so a level change must clear any still flying —
+    // otherwise the old level's "+500" hangs over the new one.
+    for (const pop of this.popTexts) pop.destroy();
+    this.popTexts = [];
+  }
+
+  // Per-level room: carpets, exit pad, decor, floor labels, walls, cases.
+  // All of it is registered in this.levelObjs for destroyLevel().
+  buildLevelGraphics() {
+    const L = this.level;
     // Red carpet runners with a gold edge, laid over the marble.
-    for (const c of LEVEL.carpets) {
-      floor.fillStyle(COLORS.carpet, 1);
-      floor.fillRect(c.x, c.y, c.w, c.h);
-      floor.fillStyle(COLORS.carpetDark, 1);
-      floor.fillRect(c.x + 8, c.y + 8, c.w - 16, c.h - 16);
-      floor.lineStyle(2, COLORS.wallTrim, 0.9);
-      floor.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6);
-      floor.lineStyle(1, COLORS.wallTrim, 0.5);
-      floor.strokeRect(c.x + 10, c.y + 10, c.w - 20, c.h - 20);
+    const carpetG = this.add.graphics().setDepth(0);
+    for (const c of L.carpets) {
+      carpetG.fillStyle(COLORS.carpet, 1);
+      carpetG.fillRect(c.x, c.y, c.w, c.h);
+      carpetG.fillStyle(COLORS.carpetDark, 1);
+      carpetG.fillRect(c.x + 8, c.y + 8, c.w - 16, c.h - 16);
+      carpetG.lineStyle(2, COLORS.wallTrim, 0.9);
+      carpetG.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6);
+      carpetG.lineStyle(1, COLORS.wallTrim, 0.5);
+      carpetG.strokeRect(c.x + 10, c.y + 10, c.w - 20, c.h - 20);
     }
+    this.levelObjs.push(carpetG);
 
     // Exit zone: green floor pad, drawn before the walls.
     const exit = this.add.graphics().setDepth(1);
     exit.fillStyle(COLORS.exitDark, 0.9);
-    exit.fillRect(LEVEL.exitZone.x, LEVEL.exitZone.y, LEVEL.exitZone.w, LEVEL.exitZone.h);
+    exit.fillRect(L.exitZone.x, L.exitZone.y, L.exitZone.w, L.exitZone.h);
     exit.lineStyle(3, COLORS.exit, 1);
-    exit.strokeRect(LEVEL.exitZone.x, LEVEL.exitZone.y, LEVEL.exitZone.w, LEVEL.exitZone.h);
+    exit.strokeRect(L.exitZone.x, L.exitZone.y, L.exitZone.w, L.exitZone.h);
+    this.levelObjs.push(exit);
 
     // Decor: the vault's round steel door, pedestals and potted plants.
     // All depth 1 — flat on the floor, under the actors, never blocking.
     const decor = this.add.graphics().setDepth(1);
-    const vd = LEVEL.vaultDoor;
+    const vd = L.vaultDoor;
     decor.fillStyle(COLORS.lootGold, 0.12);
     decor.fillCircle(vd.x, vd.y, vd.r + 16);
     decor.fillStyle(COLORS.vaultSteel, 1);
@@ -165,7 +201,7 @@ export class HeistScene extends Phaser.Scene {
     decor.fillCircle(vd.x, vd.y, 9);
     decor.lineStyle(2, COLORS.wallTrim, 1);
     decor.strokeCircle(vd.x, vd.y, 9);
-    for (const p of LEVEL.pedestals) {
+    for (const p of L.pedestals) {
       decor.fillStyle(0x000000, 0.3);
       decor.fillEllipse(p.x + p.w / 2, p.y + p.h / 2 + 4, p.w + 6, 10);
       decor.fillStyle(COLORS.vaultDark, 1);
@@ -198,7 +234,7 @@ export class HeistScene extends Phaser.Scene {
         decor.fillRect(cx - 6, cy + 1, 12, 3);
       }
     }
-    for (const p of LEVEL.plants) {
+    for (const p of L.plants) {
       decor.fillStyle(0x000000, 0.3);
       decor.fillEllipse(p.x, p.y + 12, 30, 10);
       decor.fillStyle(COLORS.plantLeaf, 1);
@@ -214,21 +250,24 @@ export class HeistScene extends Phaser.Scene {
       decor.strokeRect(p.x - 9, p.y, 18, 13);
     }
 
+    this.levelObjs.push(decor);
+
     // Floor labels: the three routes, the vault, the exit.
-    for (const label of LEVEL.labels) {
+    for (const label of L.labels) {
       const big = label.text === 'EXIT';
-      this.add.text(label.x, label.y, label.text, {
+      const t = this.add.text(label.x, label.y, label.text, {
         fontFamily: MONO,
         fontSize: big ? '18px' : '12px',
         color: big ? '#39ff6a' : '#5a6b8f',
         fontStyle: big ? 'bold' : 'normal',
       }).setOrigin(0.5).setDepth(1);
+      this.levelObjs.push(t);
     }
 
     // Walls + display cases, one static layer with a bold gold trim.
     // Framed paintings hang on the walls just inside the room.
     const stat = this.add.graphics().setDepth(3);
-    for (const w of LEVEL.walls) {
+    for (const w of L.walls) {
       stat.fillStyle(COLORS.wall, 1);
       stat.fillRect(w.x, w.y, w.w, w.h);
       stat.fillStyle(COLORS.wallTrim, 1);
@@ -236,7 +275,7 @@ export class HeistScene extends Phaser.Scene {
       stat.fillStyle(COLORS.wallTrim, 0.55);
       stat.fillRect(w.x, w.y + w.h - 2, w.w, 2);
     }
-    for (const p of LEVEL.paintings) {
+    for (const p of L.paintings) {
       stat.fillStyle(COLORS.wallTrim, 1);
       stat.fillRect(p.x - 3, p.y - 3, p.w + 6, p.h + 6);
       stat.fillStyle(p.hue, 1);
@@ -246,7 +285,7 @@ export class HeistScene extends Phaser.Scene {
       if (p.w > p.h) stat.lineBetween(p.x + 4, horizon, p.x + p.w - 4, horizon);
       else stat.lineBetween(horizon, p.y + 4, horizon, p.y + p.h - 4);
     }
-    for (const c of LEVEL.cases) {
+    for (const c of L.cases) {
       stat.fillStyle(COLORS.caseSide, 1);
       stat.fillRect(c.x, c.y, c.w, c.h);
       stat.fillStyle(COLORS.caseTop, 1);
@@ -255,27 +294,12 @@ export class HeistScene extends Phaser.Scene {
       stat.strokeRect(c.x, c.y, c.w, c.h);
       stat.lineStyle(1, COLORS.wallTrim, 0.9);
       stat.strokeRect(c.x + 2, c.y + 2, c.w - 4, c.h - 4);
-      this.add.text(c.x + c.w / 2, c.y + c.h / 2, 'COVER', {
+      const cover = this.add.text(c.x + c.w / 2, c.y + c.h / 2, 'COVER', {
         fontFamily: MONO, fontSize: '10px', color: '#8fb08f',
       }).setOrigin(0.5).setDepth(3);
+      this.levelObjs.push(cover);
     }
-
-    // Vignette: soft darkness at the play-area edges, for the night mood.
-    // Depth 19 sits above the actors but below the overlays (20).
-    const vig = this.add.graphics().setDepth(19);
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0.3, 0, 0);
-    vig.fillRect(0, HUD_HEIGHT, GAME_WIDTH, 90);
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.3, 0.3);
-    vig.fillRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 90);
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.3, 0, 0.3, 0);
-    vig.fillRect(0, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.3, 0, 0.3);
-    vig.fillRect(GAME_WIDTH - 90, HUD_HEIGHT, 90, GAME_HEIGHT - HUD_HEIGHT);
-
-    // Vision cones, redrawn every frame (depth 2: above the floor, below walls).
-    this.coneG = this.add.graphics().setDepth(2);
-    // Smoke cloud, above loot, below the actors.
-    this.smokeG = this.add.graphics().setDepth(4);
+    this.levelObjs.push(stat);
   }
 
   buildLoot() {
@@ -313,6 +337,14 @@ export class HeistScene extends Phaser.Scene {
       } else if (item.kind === 'gold') {
         shape = this.add.rectangle(item.x, item.y, 30, 16, COLORS.lootGold, 1).setDepth(4);
         shape.setStrokeStyle(2, 0xfff3b0, 1);
+      } else if (item.kind === 'crown') {
+        // Level 2: a golden crown, three points and a band.
+        shape = this.add.polygon(item.x, item.y, [-14, 6, -14, -6, -7, 2, 0, -10, 7, 2, 14, -6, 14, 6], COLORS.lootGold, 1).setDepth(4);
+        shape.setStrokeStyle(2, 0xfff3b0, 1);
+      } else if (item.kind === 'idol') {
+        // Level 2: a small golden idol, a mini diamond on a dark base.
+        shape = this.add.polygon(item.x, item.y, [0, -12, 9, 0, 0, 12, -9, 0], COLORS.lootGold, 1).setDepth(4);
+        shape.setStrokeStyle(2, 0xfff3b0, 1);
       } else {
         shape = this.add.circle(item.x, item.y, 12, 0x7fd4c1, 1).setDepth(4);
         shape.setStrokeStyle(2, COLORS.lootGold, 1);
@@ -324,38 +356,93 @@ export class HeistScene extends Phaser.Scene {
         fontFamily: MONO, fontSize: '10px', color: COLORS.textGold, fontStyle: 'bold',
       }).setOrigin(0.5, 0).setDepth(4);
       this.lootObjs.push({ item, halo, glow, sparkles, shape, label });
+      this.levelObjs.push(halo, glow, shape, label, ...sparkles);
     }
   }
 
-  buildActors() {
+  // Persistent actor graphics (redrawn every frame) plus the thief tag,
+  // the vent hint and the smoke circle — one thief for the whole campaign.
+  buildActorGraphics() {
     // All actors are drawn procedurally each frame (see drawGuard /
     // drawCamera / drawThief in render): a hooded Kestrel, uniformed guards
     // with caps and flashlights, and wall-mounted CCTV cameras. No assets.
     this.guardG = this.add.graphics().setDepth(5);
     this.camG = this.add.graphics().setDepth(5);
     this.thiefG = this.add.graphics().setDepth(6);
+    // "KESTREL" tag so the judge sees the thief at a glance.
+    this.thiefTag = this.add.text(0, 0, 'KESTREL', {
+      fontFamily: MONO, fontSize: '10px', color: COLORS.textGreen, fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(6);
+    this.ventText = this.add.text(0, 0, 'IN VENT — SLOW', {
+      fontFamily: MONO, fontSize: '10px', color: '#9aa7c2',
+    }).setOrigin(0.5).setDepth(6).setVisible(false);
+    // Smoke cloud circle.
+    this.smokeCircle = this.add.circle(0, 0, SMOKE_RADIUS, 0x9fb3a0, 0.4).setDepth(4).setVisible(false);
+    this.smokeCircle.setStrokeStyle(2, 0xd7e5d7, 0.8);
+  }
+
+  // Per-level actor tags: one "!" per guard, one "OFF" per camera. Rebuilt
+  // for each level because Level 2 has more guards and cameras.
+  buildActorObjs() {
     this.guardObjs = this.guards.map((g) => {
       const alert = this.add.text(g.x, g.y - 30, '!', {
         fontFamily: FONT, fontSize: '24px', color: '#ff5252', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5).setVisible(false);
+      this.levelObjs.push(alert);
       return { logic: g, alert };
     });
     this.camObjs = this.cameras.map((c) => {
       const off = this.add.text(c.x, c.y - 24, 'OFF', {
         fontFamily: MONO, fontSize: '11px', color: '#9aa7c2', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5).setVisible(false);
+      this.levelObjs.push(off);
       return { logic: c, off };
     });
-    // "KESTREL" tag so the judge sees the thief at a glance.
-    this.thiefTag = this.add.text(this.thief.x, this.thief.y - 32, 'KESTREL', {
-      fontFamily: MONO, fontSize: '10px', color: COLORS.textGreen, fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(6);
-    this.ventText = this.add.text(this.thief.x, this.thief.y + 28, 'IN VENT — SLOW', {
-      fontFamily: MONO, fontSize: '10px', color: '#9aa7c2',
-    }).setOrigin(0.5).setDepth(6).setVisible(false);
-    // Smoke cloud circle.
-    this.smokeCircle = this.add.circle(0, 0, SMOKE_RADIUS, 0x9fb3a0, 0.4).setDepth(4).setVisible(false);
-    this.smokeCircle.setStrokeStyle(2, 0xd7e5d7, 0.8);
+  }
+
+  // Build (or rebuild) a campaign level: destroy the old room, spawn the
+  // new level's actors and loot, reset the run state. The campaign loot
+  // banked from Level 1 is kept — only a campaign restart clears it.
+  loadLevel(i) {
+    this.levelIndex = i;
+    this.level = LEVELS[i];
+    this.destroyLevel();
+    this.blockers = levelBlockers(this.level);
+    this.thief = new Thief(this.level.spawn.x, this.level.spawn.y);
+    this.guards = this.level.guards.map((d) => new Guard(d));
+    this.cameras = this.level.cameras.map((d) => new Camera(d));
+    this.loot = this.level.loot.map((d) => ({ ...d, collected: false }));
+    this.buildLevelGraphics();
+    this.buildLoot();
+    this.buildActorObjs();
+    this.lootPoints = 0;
+    this.stock = { ...TOOL_STOCK };
+    this.smokeUntil = -1;
+    this.smokeX = 0;
+    this.smokeY = 0;
+    this.clock = 0;
+    this.caughtT = 0;
+    this.alarmBeepT = 0;
+    this.toastT = 0;
+    this.finalScore = null;
+    this.levelClear = false;
+    this.alarm.reset();
+    this.smokeCircle.setVisible(false);
+    if (this.toastText) this.toastText.setText(''); // no stale toast on the new level
+    this.applyDifficulty();
+    if (this.objectiveText) this.objectiveText.setText(this.levelObjective());
+    this.mode = 'play';
+    this.showOverlay(null);
+  }
+
+  levelObjective() {
+    return this.levelIndex === 0
+      ? 'OBJECTIVE: Steal the diamond, reach the EXIT'
+      : 'OBJECTIVE: Steal the Star of Halcyon, reach the EXIT';
+  }
+
+  nextLevel() {
+    if (this.levelIndex === 0 && this.levelClear) this.loadLevel(1);
   }
 
   // Rotate a local (facing +x) point into world space around (x, y).
@@ -579,11 +666,14 @@ export class HeistScene extends Phaser.Scene {
     return [
       'THE KESTREL JOB — a top-down stealth heist in the Halcyon Gallery.',
       'Steal the DIAMOND from the vault, then reach the green EXIT.',
+      '2 LEVELS — the Halcyon Gallery and the Upper Gallery.',
+      'Clear Level 1, then steal THE STAR OF HALCYON (800 pts) upstairs.',
       'Dodge guard vision cones and CCTV cameras — walls and display',
       'cases block sight. The alarm rises when you are seen; at 100% the job is over.',
       'MOVE  WASD / Arrows      EMP  [1] — kill the nearest camera 5s (×2)',
       'SMOKE  [2] — hide in a cloud 3s (×2)      PAUSE  P / Esc      MUTE  M',
       'Three routes: the guarded MAIN HALL, the SERVICE CORRIDOR, or crawl the VENT.',
+      'THE UPPER GALLERY AWAITS.',
       `DIFFICULTY  [1] ROOKIE ${mark('rookie')}   [2] PRO ${mark('pro')}   [3] LEGEND ${mark('legend')}  — press 1 / 2 / 3`,
       `BEST SCORE: ${this.best}`,
     ];
@@ -616,20 +706,25 @@ export class HeistScene extends Phaser.Scene {
     }).setOrigin(0.5);
     c.add([banner, title, scoreLine, panel, body, foot]);
     c.setVisible(false);
-    return { container: c, body, foot, scoreLine };
+    return { container: c, title, body, foot, scoreLine };
   }
 
   // Apply the picked difficulty to the live rules and the HUD.
+  // Guard counts and the alarm rate are per level: Level 2 runs four
+  // guards on PRO/LEGEND and a 1.2x alarm rate. Level 1 is the v1 balance.
   applyDifficulty() {
     const d = DIFFICULTIES[this.diffKey];
+    const guardCount = this.level.diffGuards?.[this.diffKey] ?? d.guards;
     for (let i = 0; i < this.guards.length; i += 1) {
       const g = this.guards[i];
       g.speed = GUARD_SPEED * d.guardSpeed;
-      g.active = i < d.guards;
+      g.active = i < guardCount;
     }
     for (const c of this.cameras) c.sweepSpeed = CAMERA_SWEEP_SPEED * d.cameraSweep;
-    this.alarm.rate = d.alarmRate;
-    this.levelText.setText(`LV 1 · HALCYON GALLERY · ${d.name}`);
+    this.alarm.rate = d.alarmRate * (this.level.alarmRate ?? 1);
+    if (this.levelText) {
+      this.levelText.setText(`LV ${this.levelIndex + 1} · ${this.level.name.toUpperCase()} · ${d.name}`);
+    }
     if (this.titleOverlay) this.refreshTitle();
   }
 
@@ -641,7 +736,7 @@ export class HeistScene extends Phaser.Scene {
 
   showOverlay(name) {
     for (const key of ['titleOverlay', 'pauseOverlay', 'caughtOverlay', 'overOverlay', 'winOverlay']) {
-      this[key].container.setVisible(key === `${name}Overlay`);
+      if (this[key]) this[key].container.setVisible(key === `${name}Overlay`);
     }
   }
 
@@ -691,19 +786,44 @@ export class HeistScene extends Phaser.Scene {
     if (this.mode === 'win') return;
     const timeBonus = Math.max(0, TIME_BONUS_START - Math.floor(this.clock));
     const alarmPenalty = Math.floor(this.alarm.peak / 2);
-    const total = this.lootPoints + timeBonus - alarmPenalty;
-    this.finalScore = { loot: this.lootPoints, timeBonus, alarmPenalty, total };
     this.mode = 'win';
-    saveBest(total);
-    this.best = safeBest();
-    this.winOverlay.scoreLine.setText(`FINAL SCORE  ${total}      BEST  ${this.best}`);
-    this.winOverlay.body.setText([
-      'The diamond is yours. Kestrel vanishes into the night.',
-      '',
-      `LOOT  ${this.lootPoints} pts`,
-      `TIME BONUS  +${timeBonus}  (finished in ${fmtTime(this.clock)})`,
-      `ALARM PENALTY  -${alarmPenalty}  (peak alarm ${Math.floor(this.alarm.peak)}%)`,
-    ].join('\n'));
+    if (this.levelIndex === 0) {
+      // Level 1 clear: bank the loot, the campaign continues upstairs.
+      const total = this.lootPoints + timeBonus - alarmPenalty;
+      this.finalScore = { loot: this.lootPoints, timeBonus, alarmPenalty, total };
+      this.campaignLoot += this.lootPoints;
+      this.levelClear = true;
+      saveBest(total);
+      this.best = safeBest();
+      this.winOverlay.title.setText('★ LEVEL 1 CLEAR ★');
+      this.winOverlay.scoreLine.setText(`LEVEL 1 SCORE  ${total}      CAMPAIGN LOOT  ${this.campaignLoot}`);
+      this.winOverlay.body.setText([
+        'The Halcyon Gallery is yours. The Upper Gallery awaits.',
+        '',
+        `LOOT  ${this.lootPoints} pts`,
+        `TIME BONUS  +${timeBonus}  (finished in ${fmtTime(this.clock)})`,
+        `ALARM PENALTY  -${alarmPenalty}  (peak alarm ${Math.floor(this.alarm.peak)}%)`,
+      ].join('\n'));
+      this.winOverlay.foot.setText('PRESS N FOR NEXT LEVEL · R TO REPLAY');
+    } else {
+      // Final win: the whole campaign scores as one job.
+      const total = this.campaignLoot + this.lootPoints + timeBonus - alarmPenalty;
+      this.finalScore = { loot: this.lootPoints, campaignLoot: this.campaignLoot, timeBonus, alarmPenalty, total };
+      this.levelClear = true;
+      saveBest(total);
+      this.best = safeBest();
+      this.winOverlay.title.setText('★ CLEAN GETAWAY ★');
+      this.winOverlay.scoreLine.setText(`FINAL SCORE  ${total}      BEST  ${this.best}`);
+      this.winOverlay.body.setText([
+        'The Star of Halcyon is yours. Kestrel vanishes into the night.',
+        '',
+        `CAMPAIGN LOOT  ${this.campaignLoot} pts  (Level 1)`,
+        `LEVEL 2 LOOT  ${this.lootPoints} pts`,
+        `TIME BONUS  +${timeBonus}  (finished in ${fmtTime(this.clock)})`,
+        `ALARM PENALTY  -${alarmPenalty}  (peak alarm ${Math.floor(this.alarm.peak)}%)`,
+      ].join('\n'));
+      this.winOverlay.foot.setText('PRESS R TO PLAY AGAIN');
+    }
     this.showOverlay('win');
     if (!silent) this.sfx.win();
   }
@@ -712,10 +832,16 @@ export class HeistScene extends Phaser.Scene {
     return {
       mode: this.mode,
       difficulty: this.diffKey,
+      level: this.level.name,
+      levelIndex: this.levelIndex,
+      levelCount: LEVELS.length,
+      nextLevelAvailable: this.levelClear && this.levelIndex === 0,
+      campaignLoot: this.campaignLoot,
       thief: { x: Math.round(this.thief.x), y: Math.round(this.thief.y) },
       alarm: Math.round(this.alarm.value),
       score: this.lootPoints,
       lootCollected: this.loot.filter((l) => l.collected).length,
+      lootTotal: this.loot.length,
       diamond: this.loot.find((l) => l.kind === 'diamond').collected,
       clock: Math.round(this.clock),
       stock: { ...this.stock },
@@ -728,31 +854,10 @@ export class HeistScene extends Phaser.Scene {
   // --- rules -----------------------------------------------------------------
 
   resetWorld() {
-    this.thief.reset(LEVEL.spawn.x, LEVEL.spawn.y);
-    this.guards = LEVEL.guards.map((d) => new Guard(d));
-    this.cameras = LEVEL.cameras.map((d) => new Camera(d));
-    this.guardObjs.forEach((o, i) => { o.logic = this.guards[i]; });
-    this.camObjs.forEach((o, i) => { o.logic = this.cameras[i]; });
-    this.alarm.reset();
-    this.loot.forEach((l) => { l.collected = false; });
-    this.lootObjs.forEach((o) => {
-      o.halo.setVisible(true);
-      o.glow.setVisible(true);
-      o.sparkles.forEach((s) => s.setVisible(true));
-      o.shape.setVisible(true);
-      o.label.setVisible(true);
-    });
-    this.lootPoints = 0;
-    this.stock = { ...TOOL_STOCK };
-    this.smokeUntil = -1;
-    this.smokeCircle.setVisible(false);
-    this.clock = 0;
-    this.caughtT = 0;
-    this.finalScore = null;
-    this.applyDifficulty();
-    this.objectiveText.setText('OBJECTIVE: Steal the diamond, reach the EXIT');
-    this.mode = 'play';
-    this.showOverlay(null);
+    // Restart the active level. Campaign loot stays banked: dying or
+    // pressing R on Level 2 keeps what Level 1 paid. A full campaign
+    // restart (after the final win) clears it first, then loads Level 1.
+    this.loadLevel(this.levelIndex);
   }
 
   smokeActive() {
@@ -825,13 +930,21 @@ export class HeistScene extends Phaser.Scene {
       const pop = this.add.text(item.x, item.y - 24, `+${item.points}`, {
         fontFamily: MONO, fontSize: '16px', color: COLORS.textGold, fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(7);
+      this.popTexts.push(pop);
       this.tweens.add({
-        targets: pop, y: item.y - 56, alpha: 0, duration: 900, onComplete: () => pop.destroy(),
+        targets: pop, y: item.y - 56, alpha: 0, duration: 900,
+        onComplete: () => {
+          this.popTexts = this.popTexts.filter((t) => t !== pop);
+          pop.destroy();
+        },
       });
     }
     if (item.kind === 'diamond') {
-      this.objectiveText.setText('DIAMOND SECURED — REACH THE EXIT!');
-      if (!silent) this.toast('DIAMOND SECURED — RUN!');
+      const secured = this.levelIndex === 0
+        ? 'DIAMOND SECURED — REACH THE EXIT!'
+        : 'STAR SECURED — REACH THE EXIT!';
+      this.objectiveText.setText(secured);
+      if (!silent) this.toast(this.levelIndex === 0 ? 'DIAMOND SECURED — RUN!' : 'STAR SECURED — RUN!');
     }
   }
 
@@ -867,8 +980,19 @@ export class HeistScene extends Phaser.Scene {
         this.showOverlay(null);
       }
     } else if (this.mode === 'over' || this.mode === 'win') {
-      if (input.consumePressed('KeyR') || input.consumePressed('Space') || input.consumePressed('Enter')) {
-        this.resetWorld();
+      if (this.mode === 'win' && input.consumePressed('KeyN')) {
+        // N advances the campaign — but only from a cleared Level 1.
+        this.nextLevel();
+      } else if (input.consumePressed('KeyR') || input.consumePressed('Space') || input.consumePressed('Enter')) {
+        if (this.mode === 'win') {
+          // Any win restarts from Level 1: after the final win that is a
+          // new campaign; after Level 1 it replays the level, so the
+          // banked campaign loot is cleared too.
+          this.campaignLoot = 0;
+          this.loadLevel(0);
+        } else {
+          this.resetWorld();
+        }
       }
     }
 
@@ -928,7 +1052,7 @@ export class HeistScene extends Phaser.Scene {
   stepPlay(dt) {
     this.clock += dt;
 
-    this.thief.update(dt, this.input_, this.blockers, LEVEL.ventZone);
+    this.thief.update(dt, this.input_, this.blockers, this.level.ventZone);
     if (this.thief.stepped) {
       this.thief.stepped = false;
       this.sfx.step();
@@ -962,7 +1086,7 @@ export class HeistScene extends Phaser.Scene {
 
     // Getaway: diamond in hand and standing on the green EXIT pad.
     const diamond = this.loot.find((l) => l.kind === 'diamond');
-    const e = LEVEL.exitZone;
+    const e = this.level.exitZone;
     if (
       diamond.collected &&
       this.thief.x >= e.x && this.thief.x <= e.x + e.w &&
@@ -1051,7 +1175,7 @@ export class HeistScene extends Phaser.Scene {
     this.spottedText.setVisible(spotted);
     if (spotted) this.spottedText.setAlpha(Math.sin(this.clock * 12) > 0 || this.frozen ? 1 : 0.25);
     const collected = this.loot.filter((l) => l.collected).length;
-    this.lootText.setText(`LOOT ${collected}/4 · SCORE ${this.lootPoints}`);
+    this.lootText.setText(`LOOT ${collected}/${this.loot.length} · SCORE ${this.lootPoints}`);
     this.timerText.setText(`TIME ${fmtTime(this.clock)}`);
     this.empButton.text.setText(`EMP [1] ×${this.stock.emp}`);
     this.smokeButton.text.setText(`SMOKE [2] ×${this.stock.smoke}`);
