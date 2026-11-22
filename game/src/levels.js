@@ -43,6 +43,10 @@ export const LEVEL = {
   carpets: [
     { x: 270, y: 240, w: 130, h: 305 }, // main-hall runner
     { x: 1070, y: 204, w: 100, h: 36 }, // vault runner, in front of the door — starts below the DIAMOND 500 label (y 190..200) so the label never touches its gold frame; the runner's tail shows through the door gap (walls are drawn above it)
+    // v7 density: a service-corridor runner under the patrol line and a
+    // west-alcove runner so no quadrant of the floor reads empty.
+    { x: 700, y: 596, w: 130, h: 96 },
+    { x: 60, y: 120, w: 120, h: 96 },
   ],
   paintings: [
     { x: 150, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
@@ -50,16 +54,38 @@ export const LEVEL = {
     { x: 880, y: 92, w: 64, h: 24, hue: 0x4a6b3a },
     { x: 22, y: 300, w: 24, h: 64, hue: 0x6b5a8a },
     { x: 22, y: 520, w: 24, h: 64, hue: 0x8a6d3b },
+    // v7 density: fill the bare stretches of the top and side walls.
+    { x: 350, y: 92, w: 64, h: 24, hue: 0x3a7a6b },
+    { x: 1050, y: 92, w: 64, h: 24, hue: 0x6b4a7a },
+    { x: 22, y: 120, w: 24, h: 64, hue: 0x7a3a3a },
+    { x: 1232, y: 120, w: 24, h: 64, hue: 0x3a6b7a },
+    { x: 1232, y: 520, w: 24, h: 64, hue: 0x7a6b3a },
   ],
   pedestals: [
     { x: 200, y: 640, w: 26, h: 26, top: 'vase' },
     { x: 44, y: 540, w: 26, h: 26, top: 'bust' },
     { x: 1232, y: 640, w: 26, h: 26, top: 'idol' },
+    // v7 density: dressed pedestals in the empty west and east pockets —
+    // decor only, off every patrol line.
+    { x: 44, y: 420, w: 26, h: 26, top: 'bust' },
+    { x: 1100, y: 640, w: 26, h: 26, top: 'vase' },
+    { x: 1232, y: 300, w: 26, h: 26, top: 'idol' },
   ],
   plants: [
     { x: 48, y: 100 },
     { x: 620, y: 100 },
     { x: 1232, y: 668 },
+    // v7 density: two more plants in the bare top and bottom-right corners.
+    { x: 980, y: 100 },
+    { x: 1150, y: 668 },
+  ],
+  // v7 density: small wall lamps — a gold fixture plus a warm light pool
+  // on the floor below it. Decor only, never blocks movement or sight.
+  lamps: [
+    { x: 300, y: 80 },
+    { x: 820, y: 80 },
+    { x: 1150, y: 80 },
+    { x: 24, y: 240 },
   ],
   // The vault door: a round steel safe door the diamond sits in front of.
   vaultDoor: { x: 1120, y: 128, r: 56 },
@@ -80,11 +106,17 @@ export const LEVEL = {
     { x: 84, y: 652, text: 'EXIT' },
   ],
   // Loot: the diamond is the job; the rest is bonus score.
+  // v7: two side loot in the empty pockets — the crown on the west floor
+  // (clear of every patrol line) and the idol in the east service
+  // corridor, just past the corridor guard's turnaround (its cone faces
+  // away there). Both are reachable on open floor, never on a patrol path.
   loot: [
     { kind: 'diamond', x: 1120, y: 140, points: 500, label: 'DIAMOND 500' },
     { kind: 'painting', x: 44, y: 180, points: 100, label: 'PAINTING 100' },
     { kind: 'gold', x: 420, y: 645, points: 150, label: 'GOLD 150' },
     { kind: 'vase', x: 760, y: 470, points: 80, label: 'VASE 80' },
+    { kind: 'crown', x: 150, y: 470, points: 250, label: 'CROWN 250' },
+    { kind: 'idol', x: 1050, y: 600, points: 120, label: 'IDOL 120' },
   ],
   // Three patrolling guards: hall, vault approach, service corridor.
   guards: [
@@ -160,6 +192,9 @@ export const LEVEL_2 = {
   carpets: [
     { x: 880, y: 240, w: 130, h: 305 }, // east-hall runner
     { x: 110, y: 204, w: 100, h: 36 }, // vault runner, in front of the door — starts below the STAR OF HALCYON 800 label (y 190..200) so the label never touches its gold frame; the runner's tail shows through the door gap (walls are drawn above it)
+    // v7 density: west-alcove and corridor runners, mirroring Level 1.
+    { x: 60, y: 300, w: 120, h: 96 },
+    { x: 480, y: 596, w: 130, h: 96 },
   ],
   paintings: [
     { x: 450, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
@@ -167,16 +202,35 @@ export const LEVEL_2 = {
     { x: 1150, y: 92, w: 64, h: 24, hue: 0x4a6b3a },
     { x: 22, y: 300, w: 24, h: 64, hue: 0x6b5a8a },
     { x: 22, y: 520, w: 24, h: 64, hue: 0x8a6d3b },
+    // v7 density: fill the bare stretches of the top and right walls.
+    { x: 650, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
+    { x: 22, y: 120, w: 24, h: 64, hue: 0x3a7a5a },
+    { x: 1232, y: 300, w: 24, h: 64, hue: 0x7a3a5a },
+    { x: 1232, y: 520, w: 24, h: 64, hue: 0x4a7a3a },
   ],
   pedestals: [
     { x: 44, y: 300, w: 26, h: 26, top: 'bust' },
     { x: 1232, y: 640, w: 26, h: 26, top: 'vase' },
     { x: 1100, y: 100, w: 26, h: 26, top: 'idol' },
+    // v7 density: dressed pedestals in the empty west pocket and east of
+    // the corridor guard's turnaround — decor only, off every patrol line.
+    { x: 44, y: 420, w: 26, h: 26, top: 'vase' },
+    { x: 1100, y: 640, w: 26, h: 26, top: 'bust' },
   ],
   plants: [
     { x: 340, y: 100 },
     { x: 1232, y: 100 },
     { x: 48, y: 668 },
+    // v7 density: one more plant in the vault room's free corner and one
+    // low in the corridor (clear of the guard's path).
+    { x: 60, y: 100 },
+    { x: 700, y: 668 },
+  ],
+  // v7 density: wall lamps, same as Level 1.
+  lamps: [
+    { x: 350, y: 80 },
+    { x: 850, y: 80 },
+    { x: 24, y: 420 },
   ],
   vaultDoor: { x: 160, y: 128, r: 56 },
   ventZone: { x: 600, y: 238, w: 120, h: 44 },

@@ -5,7 +5,8 @@
 // after two rendered frames, which the screenshot script waits for.
 //
 //   ?shot=cover    every judging element in one frame: thief near the loot,
-//                  two guards + cones sweeping close, two cameras, alarm 40%
+//                  two guards + cones sweeping close, one camera EMP'd
+//                  (grey cone + EMP'D), a smoke cloud mid-use, alarm 45%
 //   ?shot=approach thief in cover, a guard cone sweeping just ahead of him
 //   ?shot=spotted  alarm 85%, a cone locked on the thief, SPOTTED! flashing
 //   ?shot=getaway  diamond taken, thief on the EXIT, CLEAN GETAWAY banner
@@ -32,11 +33,15 @@ export function applyShot(name, scene) {
   scene.setScore(0);
 
   if (name === 'cover') {
-    // Kestrel at the vault door, inches from the diamond; guard 1 stands
-    // south of the vault and its cone sweeps straight THROUGH the door gap
-    // (x 1080..1160) onto him — the cone is not clipped by the vault wall.
-    // Guard 0 sweeps the hall toward the vault; both cameras sweep; alarm
-    // sits at 40% — tense, not yet caught.
+    // v7 tools-in-action cover: Kestrel at the vault door, inches from
+    // the diamond; guard 1 stands south of the vault and its cone sweeps
+    // straight THROUGH the door gap (x 1080..1160) onto him — the cone is
+    // not clipped by the vault wall. Guard 0 sweeps the hall toward the
+    // vault; alarm sits at 45% — tense, not yet caught. NEW in v7: a smoke
+    // pellet cloud hangs just below-left of Kestrel (staged at (1020,295)
+    // — off every watcher's sight line, so guard 1 still has eyes on him)
+    // and the top camera is EMP'd (grey dead cone + "EMP'D" label, HUD
+    // reads CAMS 1). Smoke + EMP + locked cone + alarm in ONE frame.
     scene.setThief(1085, 195);
     scene.setGuard(0, 700, 300);
     scene.setGuard(1, 1120, 420);
@@ -44,10 +49,12 @@ export function applyShot(name, scene) {
     face(scene, 0, 1085, 195);
     face(scene, 1, 1085, 195);
     scene.setGuardAngle(2, Math.PI); // corridor guard looking back left
-    scene.setAlarm(40);
+    scene.setAlarm(45);
     scene.collectLootKind('painting', true);
     scene.setScore(100);
     scene.clock = 47; // 0:47 on the timer, mid-job
+    scene.stageSmoke(1020, 295); // smoke staged AFTER the clock is set
+    scene.stageEmp(0); // top camera EMP'd — grey cone + EMP'D label
   } else if (name === 'approach') {
     // Reading the patrol: Kestrel waits just above a COVER case while
     // guard 1's cone sweeps across the floor toward him.
@@ -84,6 +91,8 @@ export function applyShot(name, scene) {
     scene.collectLootKind('painting', true);
     scene.collectLootKind('gold', true);
     scene.collectLootKind('vase', true);
+    scene.collectLootKind('crown', true); // v7: all six Level 1 loot
+    scene.collectLootKind('idol', true);
     scene.clock = 132;
     scene.finishWin(true);
   } else if (name === 'l2approach') {

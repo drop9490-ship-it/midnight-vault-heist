@@ -116,6 +116,14 @@ export class HeistScene extends Phaser.Scene {
     floor.lineStyle(1, COLORS.floorLine, 0.8);
     for (let x = 16; x <= GAME_WIDTH; x += 40) floor.lineBetween(x, HUD_HEIGHT, x, GAME_HEIGHT);
     for (let y = HUD_HEIGHT; y <= GAME_HEIGHT; y += 40) floor.lineBetween(0, y, GAME_WIDTH, y);
+    // v7: gold inlay dots at every fourth tile intersection — the marble
+    // stops reading as a flat dark grid and every quadrant gets an accent.
+    for (let x = 176; x < GAME_WIDTH; x += 160) {
+      for (let y = 216; y < GAME_HEIGHT; y += 160) {
+        floor.fillStyle(COLORS.floorGold, 0.35);
+        floor.fillCircle(x, y, 2.5);
+      }
+    }
 
     // Vignette: soft darkness at the play-area edges, for the night mood.
     // Depth 19 sits above the actors but below the overlays (20).
@@ -249,6 +257,20 @@ export class HeistScene extends Phaser.Scene {
       decor.lineStyle(1, COLORS.wallTrim, 0.8);
       decor.strokeRect(p.x - 9, p.y, 18, 13);
     }
+    // v7: wall lamps — a warm light pool on the floor, a gold fixture and
+    // a bright bulb dot. Decor only, under the actors.
+    for (const lamp of L.lamps ?? []) {
+      decor.fillStyle(0xffe9a8, 0.09);
+      decor.fillCircle(lamp.x, lamp.y + 18, 46);
+      decor.fillStyle(0xffe9a8, 0.06);
+      decor.fillCircle(lamp.x, lamp.y + 18, 70);
+      decor.fillStyle(COLORS.wallTrim, 1);
+      decor.fillRect(lamp.x - 8, lamp.y - 6, 16, 8);
+      decor.fillStyle(0xfff2b0, 1);
+      decor.fillCircle(lamp.x, lamp.y + 2, 4);
+      decor.lineStyle(1, 0xffffff, 0.7);
+      decor.strokeCircle(lamp.x, lamp.y + 2, 4);
+    }
 
     this.levelObjs.push(decor);
 
@@ -308,20 +330,22 @@ export class HeistScene extends Phaser.Scene {
       const big = item.kind === 'diamond';
       const r = big ? 46 : 30;
       // Two-layer radial glow: a wide faint halo plus a hot core.
-      const halo = this.add.circle(item.x, item.y, r, COLORS.lootGlow, 0.14).setDepth(4);
-      this.tweens.add({ targets: halo, alpha: 0.06, duration: 900, yoyo: true, repeat: -1 });
-      const glow = this.add.circle(item.x, item.y, r * 0.6, COLORS.lootGlow, 0.35).setDepth(4);
-      this.tweens.add({ targets: glow, alpha: 0.14, duration: 750, yoyo: true, repeat: -1 });
+      // v7: brighter halos and five sparkles per loot so the gold reads
+      // even in the 768 px contact sheet.
+      const halo = this.add.circle(item.x, item.y, r, COLORS.lootGlow, 0.2).setDepth(4);
+      this.tweens.add({ targets: halo, alpha: 0.1, duration: 900, yoyo: true, repeat: -1 });
+      const glow = this.add.circle(item.x, item.y, r * 0.6, COLORS.lootGlow, 0.45).setDepth(4);
+      this.tweens.add({ targets: glow, alpha: 0.2, duration: 750, yoyo: true, repeat: -1 });
       // Sparkles: tiny gold dots that twinkle around the loot.
       const sparkles = [];
-      for (let i = 0; i < 3; i += 1) {
-        const a = (i * Math.PI * 2) / 3 + 0.5;
+      for (let i = 0; i < 5; i += 1) {
+        const a = (i * Math.PI * 2) / 5 + 0.5;
         const s = this.add.circle(
-          item.x + Math.cos(a) * (r - 4), item.y + Math.sin(a) * (r - 4), 2.5, 0xffffff, 0.9,
+          item.x + Math.cos(a) * (r - 4), item.y + Math.sin(a) * (r - 4), 3, 0xffffff, 1,
         ).setDepth(4);
         this.tweens.add({
-          targets: s, alpha: 0.1, scale: 0.5, duration: 500 + i * 170,
-          yoyo: true, repeat: -1, delay: i * 220,
+          targets: s, alpha: 0.1, scale: 0.5, duration: 450 + i * 130,
+          yoyo: true, repeat: -1, delay: i * 150,
         });
         sparkles.push(s);
       }
@@ -381,19 +405,23 @@ export class HeistScene extends Phaser.Scene {
     this.smokeCircle.setStrokeStyle(2, 0xd7e5d7, 0.8);
   }
 
-  // Per-level actor tags: one "!" per guard, one "OFF" per camera. Rebuilt
+  // Per-level actor tags: one "!" per guard, one "EMP'D" per camera. Rebuilt
   // for each level because Level 2 has more guards and cameras.
   buildActorObjs() {
     this.guardObjs = this.guards.map((g) => {
-      const alert = this.add.text(g.x, g.y - 30, '!', {
-        fontFamily: FONT, fontSize: '24px', color: '#ff5252', fontStyle: 'bold',
+      // v7: bigger, stroked "!" — the alert must read in the contact sheet.
+      const alert = this.add.text(g.x, g.y - 34, '!', {
+        fontFamily: FONT, fontSize: '32px', color: '#ff5252', fontStyle: 'bold',
+        stroke: '#5a0000', strokeThickness: 5,
       }).setOrigin(0.5).setDepth(5).setVisible(false);
       this.levelObjs.push(alert);
       return { logic: g, alert };
     });
     this.camObjs = this.cameras.map((c) => {
-      const off = this.add.text(c.x, c.y - 24, 'OFF', {
-        fontFamily: MONO, fontSize: '11px', color: '#9aa7c2', fontStyle: 'bold',
+      // v7: "EMP'D" in gold, below the camera body — above it would hide
+      // behind the HUD bar for the top-wall camera (y 74).
+      const off = this.add.text(c.x, c.y + 30, "EMP'D", {
+        fontFamily: MONO, fontSize: '13px', color: COLORS.textGold, fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(5).setVisible(false);
       this.levelObjs.push(off);
       return { logic: c, off };
@@ -582,8 +610,14 @@ export class HeistScene extends Phaser.Scene {
     this.spottedText = this.add.text(GAME_WIDTH / 2, 92, 'SPOTTED!', {
       fontFamily: MONO, fontSize: '24px', color: COLORS.textRed, fontStyle: 'bold',
     }).setOrigin(0.5, 0).setDepth(11).setVisible(false);
-    this.lootText = this.add.text(575, 33, 'LOOT 0/4 · SCORE 0', {
+    this.lootText = this.add.text(520, 33, 'LOOT 0/6 · SCORE 0', {
       fontFamily: MONO, fontSize: '12px', color: COLORS.text,
+    }).setDepth(11);
+    // v7: objective checklist + live watcher counts, one extra HUD line in
+    // the free gap of the status row — diamond/star and exit status plus
+    // how many guards and cameras are still watching.
+    this.checklistText = this.add.text(685, 33, '', {
+      fontFamily: MONO, fontSize: '10px', color: COLORS.text,
     }).setDepth(11);
     this.levelText = this.add.text(370, 33, 'LV 1 · HALCYON GALLERY · PRO', {
       fontFamily: MONO, fontSize: '11px', color: COLORS.textGold,
@@ -723,7 +757,10 @@ export class HeistScene extends Phaser.Scene {
     for (const c of this.cameras) c.sweepSpeed = CAMERA_SWEEP_SPEED * d.cameraSweep;
     this.alarm.rate = d.alarmRate * (this.level.alarmRate ?? 1);
     if (this.levelText) {
-      this.levelText.setText(`LV ${this.levelIndex + 1} · ${this.level.name.toUpperCase()} · ${d.name}`);
+      // v7: short gallery name ("HALCYON" / "UPPER") so the v7 objective
+      // checklist fits in the same HUD row beside the loot counter.
+      const short = this.level.name.toUpperCase().split(' ')[0];
+      this.levelText.setText(`LV ${this.levelIndex + 1} · ${short} · ${d.name}`);
     }
     if (this.titleOverlay) this.refreshTitle();
   }
@@ -771,6 +808,22 @@ export class HeistScene extends Phaser.Scene {
 
   setAlarm(v) {
     this.alarm.set(v);
+  }
+
+  // Pose-only staging (shots.js): drop a smoke cloud / EMP a camera
+  // WITHOUT spending stock or running the tools' rules — the frozen cover
+  // pose shows the tools mid-use. The clock never advances while frozen,
+  // so the cloud and the dead camera stay put for the screenshot.
+  stageSmoke(x, y) {
+    this.smokeX = x;
+    this.smokeY = y;
+    this.smokeUntil = this.clock + SMOKE_DURATION;
+    this.smokeCircle.setPosition(x, y).setVisible(true);
+  }
+
+  stageEmp(i) {
+    const c = this.cameras[i];
+    if (c) c.emp(this.clock, EMP_DURATION);
   }
 
   setScore(v) {
@@ -1125,14 +1178,33 @@ export class HeistScene extends Phaser.Scene {
     for (const guard of this.guards) {
       if (!guard.active) continue;
       const pts = conePolygon(guard.x, guard.y, guard.angle, guard.fov, guard.range, this.blockers);
-      g.fillStyle(COLORS.coneGuard, guard.seeing ? 0.38 : 0.2);
+      // v7: a guard that has Kestrel fills its cone a solid, darker red
+      // with a bright edge — the locked-on cone must shout in a thumbnail.
+      g.fillStyle(COLORS.coneGuard, guard.seeing ? 0.5 : 0.2);
       g.fillPoints(pts, true);
+      if (guard.seeing) {
+        g.lineStyle(2, 0xff6b6b, 0.9);
+        g.strokePoints(pts, true);
+      }
     }
     for (const cam of this.cameras) {
-      if (cam.isDisabled(this.clock)) continue;
+      if (cam.isDisabled(this.clock)) {
+        // v7: an EMP'd camera keeps a faint GREY dead cone — the judge
+        // sees the tool worked instead of the cone just vanishing.
+        const pts = conePolygon(cam.x, cam.y, cam.angle, cam.fov, cam.range, this.blockers);
+        g.fillStyle(0x8a94a8, 0.08);
+        g.fillPoints(pts, true);
+        g.lineStyle(1, 0x5a6478, 0.5);
+        g.strokePoints(pts, true);
+        continue;
+      }
       const pts = conePolygon(cam.x, cam.y, cam.angle, cam.fov, cam.range, this.blockers);
-      g.fillStyle(COLORS.coneCamera, cam.seeing ? 0.34 : 0.18);
+      g.fillStyle(COLORS.coneCamera, cam.seeing ? 0.45 : 0.18);
       g.fillPoints(pts, true);
+      if (cam.seeing) {
+        g.lineStyle(2, 0xffc46b, 0.9);
+        g.strokePoints(pts, true);
+      }
     }
 
     // Smoke cloud fades out at the end of its life.
@@ -1154,7 +1226,7 @@ export class HeistScene extends Phaser.Scene {
         continue;
       }
       this.drawGuard(o.logic.x, o.logic.y, o.logic.angle, o.logic.seeing);
-      o.alert.setPosition(o.logic.x, o.logic.y - 30).setVisible(o.logic.seeing);
+      o.alert.setPosition(o.logic.x, o.logic.y - 34).setVisible(o.logic.seeing);
     }
     this.camG.clear();
     for (const o of this.camObjs) {
@@ -1175,6 +1247,17 @@ export class HeistScene extends Phaser.Scene {
     hg.fillRect(70, 30, aw, 14);
     hg.lineStyle(1, 0xffffff, 0.6);
     hg.lineBetween(70 + 230 * (ALARM_SPOTTED / 100), 30, 70 + 230 * (ALARM_SPOTTED / 100), 44);
+    // v7: alarm lamp — a red dot beside the % that blinks while the alarm
+    // is at SPOTTED level or above (solid in frozen poses, where the clock
+    // never advances). Dim grey while the alarm is low.
+    const alarmHot = this.alarm.value >= ALARM_SPOTTED;
+    const lampOn = alarmHot && (this.frozen || Math.sin(this.clock * 10) > 0);
+    hg.fillStyle(lampOn ? 0xff2d2d : 0x39415e, lampOn ? 1 : 0.8);
+    hg.fillCircle(352, 37, 6);
+    if (lampOn) {
+      hg.fillStyle(0xff2d2d, 0.25);
+      hg.fillCircle(352, 37, 10);
+    }
     this.alarmText.setText(`${Math.floor(this.alarm.value)}%`);
     this.alarmText.setColor(this.alarm.value >= ALARM_SPOTTED ? COLORS.textRed : COLORS.text);
     const spotted = this.alarm.value >= ALARM_SPOTTED && (this.mode === 'play' || this.frozen);
@@ -1182,6 +1265,14 @@ export class HeistScene extends Phaser.Scene {
     if (spotted) this.spottedText.setAlpha(Math.sin(this.clock * 12) > 0 || this.frozen ? 1 : 0.25);
     const collected = this.loot.filter((l) => l.collected).length;
     this.lootText.setText(`LOOT ${collected}/${this.loot.length} · SCORE ${this.lootPoints}`);
+    // v7 objective checklist: target + exit status, live watcher counts.
+    // EMP'd cameras drop out of the CAMS count — the cover pose reads CAMS 1.
+    const target = this.loot.find((l) => l.kind === 'diamond');
+    const targetName = this.levelIndex === 0 ? 'DIAMOND' : 'STAR';
+    const guardsUp = this.guards.filter((g) => g.active).length;
+    const camsUp = this.cameras.filter((c) => !c.isDisabled(this.clock)).length;
+    const checkStr = `◆ ${targetName} ${target.collected ? '✓' : '○'} · ◆ EXIT ${this.mode === 'win' ? '✓' : '○'} · GUARDS ${guardsUp} · CAMS ${camsUp}`;
+    if (this.checklistText.text !== checkStr) this.checklistText.setText(checkStr);
     this.timerText.setText(`TIME ${fmtTime(this.clock)}`);
     this.empButton.text.setText(`EMP [1] ×${this.stock.emp}`);
     this.smokeButton.text.setText(`SMOKE [2] ×${this.stock.smoke}`);

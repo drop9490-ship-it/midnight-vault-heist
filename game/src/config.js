@@ -51,7 +51,8 @@ export const COLORS = {
   bg: 0x0a0e1a,
   floor: 0x10182b,
   floorLine: 0x1a2440,
-  floorTile: 0x0d1424,
+  floorTile: 0x16223e, // v7: stronger two-tone checker so the floor stops reading as flat dark void
+  floorGold: 0xc9a227, // v7: gold inlay dots at tile intersections
   wall: 0x2a3350,
   wallTrim: 0xc9a227,
   caseTop: 0x3a5a3a,
