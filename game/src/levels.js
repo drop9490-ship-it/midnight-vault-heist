@@ -42,7 +42,7 @@ export const LEVEL = {
   // potted plants in the corners, and the vault's round steel door.
   carpets: [
     { x: 270, y: 240, w: 130, h: 305 }, // main-hall runner
-    { x: 1070, y: 188, w: 100, h: 36 }, // vault runner, in front of the door
+    { x: 1070, y: 204, w: 100, h: 36 }, // vault runner, in front of the door — starts below the DIAMOND 500 label (y 190..200) so the label never touches its gold frame; the runner's tail shows through the door gap (walls are drawn above it)
   ],
   paintings: [
     { x: 150, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
@@ -159,7 +159,7 @@ export const LEVEL_2 = {
   ],
   carpets: [
     { x: 880, y: 240, w: 130, h: 305 }, // east-hall runner
-    { x: 110, y: 188, w: 100, h: 36 }, // vault runner, in front of the door
+    { x: 110, y: 204, w: 100, h: 36 }, // vault runner, in front of the door — starts below the STAR OF HALCYON 800 label (y 190..200) so the label never touches its gold frame; the runner's tail shows through the door gap (walls are drawn above it)
   ],
   paintings: [
     { x: 450, y: 92, w: 64, h: 24, hue: 0x7a4a3a },
