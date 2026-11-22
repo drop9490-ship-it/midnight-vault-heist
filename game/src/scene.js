@@ -789,12 +789,12 @@ export class HeistScene extends Phaser.Scene {
     this.mode = 'win';
     if (this.levelIndex === 0) {
       // Level 1 clear: bank the loot, the campaign continues upstairs.
+      // The BEST score is NOT saved here — it only counts a finished
+      // campaign (a CLEAN GETAWAY), never a half-finished job.
       const total = this.lootPoints + timeBonus - alarmPenalty;
       this.finalScore = { loot: this.lootPoints, timeBonus, alarmPenalty, total };
       this.campaignLoot += this.lootPoints;
       this.levelClear = true;
-      saveBest(total);
-      this.best = safeBest();
       this.winOverlay.title.setText('★ LEVEL 1 CLEAR ★');
       this.winOverlay.scoreLine.setText(`LEVEL 1 SCORE  ${total}      CAMPAIGN LOOT  ${this.campaignLoot}`);
       this.winOverlay.body.setText([
@@ -806,7 +806,8 @@ export class HeistScene extends Phaser.Scene {
       ].join('\n'));
       this.winOverlay.foot.setText('PRESS N FOR NEXT LEVEL · R TO REPLAY');
     } else {
-      // Final win: the whole campaign scores as one job.
+      // Final win: the whole campaign scores as one job — and only this
+      // CLEAN GETAWAY may set the BEST score.
       const total = this.campaignLoot + this.lootPoints + timeBonus - alarmPenalty;
       this.finalScore = { loot: this.lootPoints, campaignLoot: this.campaignLoot, timeBonus, alarmPenalty, total };
       this.levelClear = true;

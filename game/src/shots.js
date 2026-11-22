@@ -9,6 +9,8 @@
 //   ?shot=approach thief in cover, a guard cone sweeping just ahead of him
 //   ?shot=spotted  alarm 85%, a cone locked on the thief, SPOTTED! flashing
 //   ?shot=getaway  diamond taken, thief on the EXIT, CLEAN GETAWAY banner
+//   ?shot=l2approach  Level 2: thief closing on the Star of Halcyon,
+//                  guard cone locked on him, alarm 35%
 import { angleTo } from './vision.js';
 
 function face(scene, guardIndex, tx, ty) {
@@ -18,9 +20,11 @@ function face(scene, guardIndex, tx, ty) {
 }
 
 export function applyShot(name, scene) {
-  // Screenshots are always Level 1 poses — make sure the campaign is on
-  // Level 1 even if a pose is ever loaded after a Level 2 run.
-  if (scene.loadLevel && scene.levelIndex !== 0) scene.loadLevel(0);
+  // Most poses are Level 1; l2approach stages the Upper Gallery instead,
+  // so the dossier shows the second level too.
+  if (name === 'l2approach') {
+    if (scene.levelIndex !== 1) scene.loadLevel(1);
+  } else if (scene.loadLevel && scene.levelIndex !== 0) scene.loadLevel(0);
   scene.freezeWorld(true);
   scene.setMode('play');
   // A neutral starting point; each pose overrides what it needs.
@@ -82,6 +86,29 @@ export function applyShot(name, scene) {
     scene.collectLootKind('vase', true);
     scene.clock = 132;
     scene.finishWin(true);
+  } else if (name === 'l2approach') {
+    // The Upper Gallery job: Kestrel slips toward the Star of Halcyon
+    // (top-left vault) while guard 0's cone sweeps straight onto him —
+    // the bright cone and the "!" sell the danger. Guard 1's cone crosses
+    // the east hall, the corridor guard watches the south, guard 3 looks
+    // up-left across the middle; the divider camera's cone points east.
+    // Alarm sits at 35% — tense, not yet caught. The painting is already
+    // pocketed, so the HUD reads LOOT 1/6 · SCORE 100.
+    // Thief at (250, 275): clear of the vault's south wall (ends y 240)
+    // and of the VAULT label at (160, 252).
+    scene.setThief(250, 275);
+    scene.setGuard(0, 400, 300); // west of the MEZZANINE label, cone still on the thief
+    scene.setGuard(1, 850, 260);
+    scene.setGuard(2, 300, 640);
+    scene.setGuard(3, 900, 400);
+    face(scene, 0, 250, 275);
+    scene.setGuardAngle(1, Math.PI); // east guard looking back west
+    scene.setGuardAngle(2, 0); // corridor guard looking east
+    scene.setGuardAngle(3, -Math.PI * 0.75); // south-east guard looking up-left
+    scene.setAlarm(35);
+    scene.collectLootKind('painting', true);
+    scene.setScore(100);
+    scene.clock = 75; // 1:15 on the timer, mid-job upstairs
   }
   // Frozen poses never step the simulation, so evaluate vision once here —
   // the cones brighten and the "!" alerts show where a watcher has Kestrel.
