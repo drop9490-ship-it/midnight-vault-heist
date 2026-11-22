@@ -845,9 +845,14 @@ export class HeistScene extends Phaser.Scene {
       lootTotal: this.loot.length,
       diamond: this.loot.find((l) => l.kind === 'diamond').collected,
       clock: Math.round(this.clock),
+      clockPrecise: this.clock,
       stock: { ...this.stock },
-      guards: this.guards.map((g) => ({ x: Math.round(g.x), y: Math.round(g.y), seeing: g.seeing, active: g.active })),
-      cameras: this.cameras.map((c) => ({ disabled: c.isDisabled(this.clock) })),
+      guards: this.guards.map((g) => ({ x: Math.round(g.x), y: Math.round(g.y), seeing: g.seeing, active: g.active, angle: g.angle, baseAngle: g.baseAngle, wait: g.wait, sweepT: g.sweepT, wpIndex: g.wpIndex, speed: g.speed, waypoints: g.waypoints })),
+      cameras: this.cameras.map((c) => ({ disabled: c.isDisabled(this.clock), seeing: c.seeing, x: c.x, y: c.y, angle: c.angle, baseAngle: c.baseAngle, sweep: c.sweep, sweepSpeed: c.sweepSpeed, phase: c.phase })),
+      blockers: this.blockers,
+      ventZone: this.level.ventZone,
+      exitZone: this.level.exitZone,
+      loot: this.loot.map((l) => ({ kind: l.kind, x: l.x, y: l.y, points: l.points, collected: l.collected })),
       finalScore: this.finalScore,
     };
   }

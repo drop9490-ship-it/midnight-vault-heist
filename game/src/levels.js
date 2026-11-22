@@ -73,7 +73,10 @@ export const LEVEL = {
     { x: 450, y: 335, text: 'MAIN HALL' },
     { x: 640, y: 668, text: 'SERVICE CORRIDOR' },
     { x: 676, y: 392, text: 'VENT' },
-    { x: 1120, y: 216, text: 'VAULT' },
+    // VAULT sits below the vault room (y 252), clear of the DIAMOND 500
+    // label above the door — v4 stacked them and they read as one smear.
+    // Same fix Level 2 already has for the Star's label.
+    { x: 1120, y: 252, text: 'VAULT' },
     { x: 84, y: 652, text: 'EXIT' },
   ],
   // Loot: the diamond is the job; the rest is bonus score.
